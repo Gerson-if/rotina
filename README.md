@@ -82,3 +82,17 @@ curl -s http://IP/api.php?r=healthz     # monitoramento
 Senhas com bcrypt; permissões conferidas **no servidor**; sessão em cookie assinado e relida do banco a cada requisição;
 proteção contra CSRF; limite de tentativas por IP; auditoria de quem fez o quê; pastas internas fora da web.
 Lista completa em [Arquitetura](docs/05-arquitetura-e-api.md#8-segurança-resumo-técnico) e [Instalação e operação](docs/06-instalacao-e-operacao.md#9-segurança).
+## 🤝 Contribuições
+
+Contribuições são bem-vindas! Você pode colaborar com correções de bugs, melhorias de desempenho, documentação e novas funcionalidades.
+
+1. Faça um fork do repositório.
+2. Crie uma branch para sua alteração.
+3. Implemente e teste suas modificações.
+4. Envie um Pull Request explicando o que foi alterado.
+
+Procure manter o padrão de código existente e documentar as mudanças relevantes.
+
+## 📄 Licença
+
+Este projeto está licenciado sob a [Licença MIT](LICENSE). Consulte o arquivo `LICENSE` para conhecer os termos de uso, modificação e redistribuição.
