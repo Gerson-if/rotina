@@ -1,0 +1,9 @@
+config/config.php
+config/installed.lock
+storage/backups/*
+storage/logs/*
+storage/releases/*
+storage/tmp/*
+storage/maintenance.flag
+storage/update.lock
+!storage/*/.gitkeep

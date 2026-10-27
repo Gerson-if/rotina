@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Atalho:  ./rotina <comando>     (ex.: ./rotina status | backup | update pacote.zip | rollback)
+# Sempre executa como o DONO dos arquivos (o usuário do servidor web), para que backups, logs e
+# arquivos atualizados nunca fiquem com o dono errado e quebrem o site.
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
+ROOT="$(pwd)"
+PHP="$(command -v php)" || { echo "PHP não encontrado no PATH." >&2; exit 1; }
+OWNER="$(stat -c %U "$ROOT/storage" 2>/dev/null || stat -f %Su "$ROOT/storage")"
+if [ "$(id -u)" -eq 0 ] && [ "$OWNER" != "root" ]; then
+  if command -v runuser >/dev/null 2>&1; then exec runuser -u "$OWNER" -- "$PHP" "$ROOT/bin/rotina.php" "$@"; fi
+  exec sudo -u "$OWNER" "$PHP" "$ROOT/bin/rotina.php" "$@"
+fi
+exec "$PHP" "$ROOT/bin/rotina.php" "$@"

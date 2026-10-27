@@ -1,0 +1,22 @@
+# Cabeçalhos de segurança dos arquivos estáticos (requer mod_headers; se não houver, é ignorado).
+# As respostas PHP (api.php, install.php) já enviam os seus próprios cabeçalhos.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js)$">
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set Referrer-Policy "same-origin"
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+    # nunca em cache: uma atualização do sistema chega a todos imediatamente
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+Options -Indexes
+DirectoryIndex index.html
+
+# ícones / manifesto (favicons)
+<IfModule mod_mime.c>
+  AddType image/svg+xml .svg
+  AddType image/x-icon .ico
+  AddType application/manifest+json .webmanifest
+</IfModule>

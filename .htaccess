@@ -1,0 +1,7 @@
+Options -Indexes
+# Bloqueia arquivos internos caso o projeto inteiro esteja publicado
+<FilesMatch "^(VERSION|install\.sh|README\.md|CHANGELOG\.md|\.gitignore)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+</FilesMatch>
