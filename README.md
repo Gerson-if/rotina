@@ -4,7 +4,7 @@ Sistema web para equipes de suporte organizarem **verificações rotineiras de c
 o técnico atende e registra, e o sistema acompanha prazo, produção e tempo, **sem deixar trabalho parado** (o que não é
 concluído vai para uma fila compartilhada e pode ser redistribuído automaticamente, de forma justa).
 
-Roda em qualquer servidor com **Apache ou Nginx + PHP 8 + MySQL/MariaDB**, sem Docker e sem Node.js. Os usuários só precisam de um navegador.
+Roda em qualquer servidor com **Apache ou Nginx + PHP 8 + MySQL/MariaDB**.
 
 ```
 Navegador ──HTTP──▶ Apache/Nginx + PHP ──▶ MySQL/MariaDB
