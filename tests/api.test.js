@@ -521,3 +521,37 @@ test('perfil: concluídas e pendentes do técnico, com busca, período e acesso 
   assert.equal((await new Client().req('GET', `/api/profile/verifications?id=${U2}`)).status, 401);
   await tec1.req('POST', '/api/auth/logout');
 });
+
+test('admin: exclusão definitiva de usuário (transfere as abertas e preserva o histórico)', async () => {
+  const E3 = `del3.${RUN}@teste.com`, E4 = `del4.${RUN}@teste.com`, I3 = 'usr-d3' + RUN, I4 = 'usr-d4' + RUN;
+  assert.equal((await adm.sync({ users: { upsert: [mkUser(I3, E3, 'Apagar Três'), mkUser(I4, E4, 'Destino Quatro')] } })).status, 200);
+  const t = mkTask({ n: 'del', tech: E3, pppoe: 'del.' + RUN });
+  assert.equal((await adm.sync({ tasks: { upsert: [t] } })).status, 200);
+
+  // técnico não consegue nem espiar
+  assert.equal((await tec1.login(T1, 'Senha12345')).status, 200);
+  assert.equal((await tec1.req('GET', `/api/admin/users/delete-preview?id=${I3}`)).status, 403);
+  assert.equal((await tec1.req('POST', '/api/admin/users/delete', { id: I3, confirmEmail: E3 })).status, 403);
+
+  const pv = await adm.req('GET', `/api/admin/users/delete-preview?id=${I3}`);
+  assert.equal(pv.status, 200); assert.equal(pv.body.open, 1); assert.equal(pv.body.done, 0);
+
+  // recusas não alteram nada
+  assert.equal((await adm.req('POST', '/api/admin/users/delete', { id: I3, confirmEmail: E3 })).body.code, 'NEEDS_TRANSFER');
+  assert.equal((await adm.req('POST', '/api/admin/users/delete', { id: I3, transferTo: I4, confirmEmail: 'outro@x.com' })).status, 400);
+  assert.equal((await adm.req('POST', '/api/admin/users/delete', { id: I3, transferTo: I3, confirmEmail: E3 })).status, 400);
+  assert.equal((await adm.req('POST', '/api/admin/users/delete', { id: ADMIN.email, confirmEmail: ADMIN.email })).status, 400);   // id inválido (e-mail no lugar do id)
+  assert.ok((await adm.boot()).body.users.some(u => u.id === I3));
+
+  const del = await adm.req('POST', '/api/admin/users/delete', { id: I3, transferTo: I4, confirmEmail: E3.toUpperCase() });
+  assert.equal(del.status, 200); assert.equal(del.body.moved, 1);
+  const b = (await adm.boot()).body;
+  assert.ok(!b.users.some(u => u.id === I3));
+  assert.equal(b.tasks.find(x => x.id === t.id).techEmail, E4);
+  assert.equal((await adm.login(E3, 'Senha12345').catch(() => ({ status: 0 }))).status === 200, false);
+
+  // limpeza: sem verificações em aberto, o usuário de destino sai sem precisar de transferência
+  assert.equal((await adm.sync({ tasks: { delete: [t.id] } })).status, 200);
+  assert.equal((await adm.req('POST', '/api/admin/users/delete', { id: I4, confirmEmail: E4 })).status, 200);
+  await tec1.req('POST', '/api/auth/logout');
+});

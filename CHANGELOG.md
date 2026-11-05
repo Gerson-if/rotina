@@ -1,5 +1,10 @@
 # Histórico de versões
 
+## 1.8.12
+- **Gerenciar usuários com paginação.** A lista agora é dividida em páginas de **10, 20 ou 50** usuários (com *Ir para* quando há muitas páginas). Mudar a busca, o filtro *Todos/Técnicos/ADM* ou o tamanho da página volta à primeira página, e depois de uma exclusão a página atual se ajusta sozinha.
+- **Exclusão definitiva de usuário, sem corromper o sistema.** Novo botão **Excluir** em cada usuário (menos você mesmo). Antes de confirmar, o ADM vê **as consequências**: a conta some e não volta (só por backup); as **verificações em aberto** precisam ir para um técnico escolhido na hora; as **concluídas** ficam nos totais e no histórico como **“Usuário removido”**; a produtividade individual por dia é apagada; a auditoria continua mostrando o que a pessoa fez (com o e-mail e “(excluído)”). A confirmação exige **digitar o e-mail** do usuário. Tudo roda numa **única transação** (ou conclui inteiro, ou nada muda), registra `USER_DELETE` na auditoria e derruba a sessão do excluído na hora. Não exclui a si mesmo, o usuário-sistema nem o único ADM ativo. Antes só era possível excluir quem não tinha nenhuma verificação (o banco recusava os demais).
+- Novas rotas `admin/users/delete-preview` e `admin/users/delete`; nova classe `UserDeletion`. Sem migration (o usuário-sistema “Usuário removido”, bloqueado, é criado na primeira exclusão que precisar dele). Documentação atualizada.
+
 ## 1.8.11
 - **Removido o limite de tentativas por IP.** O login (antes 30 tentativas em 15 min) e o pedido de cadastro (antes 10 por hora) não são mais bloqueados por IP; ninguém recebe mais "Muitas tentativas". A falha de login continua registrada na auditoria. Mantido apenas o limite de trocas de foto por usuário. Sem migration.
 

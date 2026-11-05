@@ -877,6 +877,7 @@
           </div>
           <div id="mng-count" class="text-[11px] text-slate-500"></div>
           <div id="tech-list-container" class="space-y-2"></div>
+          <div id="mng-pager" class="flex flex-wrap items-center justify-between gap-2"></div>
         </div>
 
         <div id="users-pane-approvals" class="hidden bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
@@ -2107,6 +2108,25 @@
           <button type="submit" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold shadow-lg shadow-brand-500/20">Salvar Alterações</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: EXCLUIR USUÁRIO DEFINITIVAMENTE (mostra as consequências antes de confirmar) -->
+  <div id="modal-user-delete" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[70] flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="bg-slate-900 border border-rose-500/40 rounded-3xl w-full max-w-lg max-h-[92vh] flex flex-col shadow-2xl shadow-rose-950/40 animate-fadeIn text-xs overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="ud-title">
+      <div class="p-5 border-b border-slate-800 flex items-start gap-3 shrink-0">
+        <div class="w-11 h-11 shrink-0 rounded-2xl bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center justify-center text-lg"><i class="fa-solid fa-user-xmark"></i></div>
+        <div class="min-w-0 flex-1">
+          <h3 id="ud-title" class="text-base font-extrabold text-white">Excluir usuário definitivamente</h3>
+          <div id="ud-who" class="text-slate-400 truncate">—</div>
+        </div>
+        <button onclick="closeModal('modal-user-delete')" title="Fechar (Esc)" aria-label="Fechar" class="text-slate-400 hover:text-white p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div id="ud-body" class="flex-1 min-h-0 overflow-y-auto p-5 space-y-4"></div>
+      <div class="p-4 border-t border-slate-800 shrink-0 flex gap-2">
+        <button type="button" onclick="closeModal('modal-user-delete')" class="flex-1 px-4 py-3 rounded-xl bg-transparent hover:bg-slate-800 text-slate-300 border border-slate-700 font-bold transition">Cancelar</button>
+        <button type="button" id="ud-ok" onclick="udConfirm()" disabled class="flex-[2] px-4 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold transition flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-trash-can"></i> Excluir definitivamente</button>
+      </div>
     </div>
   </div>
 
@@ -6084,12 +6104,19 @@
     }
 
     // ----- Gerenciar usuários: busca por nome / e-mail / turno e filtro por perfil -----
-    const mngState = { q: '', role: 'ALL' };
+    const mngState = { q: '', role: 'ALL', page: 1, size: 10 };
     const SHIFT_NAMES = { MANHA: 'Manhã', TARDE: 'Tarde', NOITE: 'Noite', MADRUGADA: 'Madrugada' };
     function mngSet(k, v) {
       mngState[k] = v;
+      mngState.page = 1;   // mudou a busca ou o filtro: volta para a primeira página
       if (k === 'q') dbn('mng', renderUsersManagementList, 150); else renderUsersManagementList();
     }
+    function mngGo(p) {
+      mngState.page = Math.max(1, parseInt(p, 10) || 1);
+      renderUsersManagementList();
+      const c = document.getElementById('mng-count'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    function mngPerPage(n) { mngState.size = Math.max(1, parseInt(n, 10) || 10); mngState.page = 1; renderUsersManagementList(); }
     function renderUsersManagementList() {
       renderUsersModeBar();
       const container = document.getElementById('tech-list-container');
@@ -6112,10 +6139,18 @@
 
       if (!activeUsers.length) {
         container.innerHTML = `<div class="text-center text-slate-500 text-xs py-10 border border-dashed border-slate-800 rounded-2xl"><i class="fa-solid fa-user-slash text-2xl mb-2 block opacity-60"></i>Nenhum usuário encontrado${q ? ' para <b class="text-slate-300">“' + esc(mngState.q.trim()) + '”</b>' : ''}.</div>`;
+        const pe = document.getElementById('mng-pager'); if (pe) pe.innerHTML = '';
         return;
       }
 
-      container.innerHTML = activeUsers.map(u => `
+      // Paginação: página atual sempre dentro do intervalo (ex.: depois de excluir o último da última página)
+      const pages = Math.max(1, Math.ceil(activeUsers.length / mngState.size));
+      if (mngState.page > pages) mngState.page = pages;
+      const pageUsers = activeUsers.slice((mngState.page - 1) * mngState.size, mngState.page * mngState.size);
+      const pagerEl = document.getElementById('mng-pager');
+      if (pagerEl) pagerEl.innerHTML = vfPagerMain(activeUsers.length, mngState.page, mngState.size, 'mngGo', 'mngPerPage', [10, 20, 50]);
+
+      container.innerHTML = pageUsers.map(u => `
         <div class="bg-slate-950 border border-slate-800 p-3 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
           <div>
             <span class="font-bold text-white text-sm">${esc(u.name)}</span>
@@ -6129,9 +6164,95 @@
             <button onclick="openModalUserProfile('${u.id}')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-brand-400 font-bold border border-slate-700 transition flex items-center gap-1">
               <i class="fa-solid fa-user-pen"></i> Editar / Redefinir Senha
             </button>
+            ${u.id !== state.currentUser.id ? `<button onclick="openUserDelete('${esc(u.id)}')" title="Excluir usuário definitivamente" aria-label="Excluir ${esc(u.name)}" class="px-3 py-1.5 rounded-xl bg-rose-600/15 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold transition flex items-center gap-1"><i class="fa-solid fa-trash-can"></i> Excluir</button>` : ''}
           </div>
         </div>
       `).join('');
+    }
+
+    // ----- Excluir usuário definitivamente: o servidor faz tudo numa transação; aqui só mostramos as consequências e pedimos a confirmação -----
+    const ud = { id: null, data: null, busy: false };
+    const udPlural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+    async function openUserDelete(id) {
+      const u = state.users.find(x => x.id === id);
+      if (!u || state.currentUser.role !== 'ADM') return;
+      Object.assign(ud, { id, data: null, busy: false });
+      byId('ud-who').textContent = `${u.name} · ${u.email}`;
+      byId('ud-body').innerHTML = '<div class="text-center text-slate-400 py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Verificando o que será afetado…</div>';
+      byId('ud-ok').disabled = true;
+      openModal('modal-user-delete');
+      const r = await sysApi('GET', 'admin/users/delete-preview&id=' + encodeURIComponent(id));
+      if (ud.id !== id) return;   // fechou/abriu outro enquanto carregava
+      if (!r.ok) {
+        closeModal('modal-user-delete');
+        showToast((r.data && r.data.error) || 'Não foi possível verificar este usuário.', 'error');
+        if (r.status === 404) await refreshFromServer(true);
+        return;
+      }
+      ud.data = r.data;
+      udRender();
+    }
+    function udRender() {
+      const d = ud.data; if (!d) return;
+      const openByEmail = new Map();
+      state.tasks.forEach(t => { if (!t.finalizado) openByEmail.set(t.techEmail, (openByEmail.get(t.techEmail) || 0) + 1); });
+      const cands = state.users.filter(x => x.role === 'TEC' && x.status === 'APROVADO' && x.id !== d.user.id).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+      const li = (ico, html) => `<li class="flex gap-2.5"><i class="fa-solid ${ico} mt-0.5 w-4 text-center shrink-0 text-rose-300"></i><span>${html}</span></li>`;
+      const b = (t) => `<b class="text-slate-100">${t}</b>`;
+      const items = [
+        li('fa-ban', `${b('Não tem volta.')} A conta de ${b(esc(d.user.name))} é apagada e a pessoa perde o acesso na hora. Só um backup restaura.`)
+      ];
+      if (d.user.role === 'ADM') items.push(li('fa-user-shield', `Esta pessoa é ${b('administradora')}: ela deixa de gerenciar o sistema.`));
+      if (d.done > 0 || d.events > 0) {
+        items.push(li('fa-clock-rotate-left', `${d.done > 0 ? b(udPlural(d.done, 'verificação concluída', 'verificações concluídas')) + ' continuam' : 'O histórico dela continua'} nos números da equipe, nos gráficos e no histórico dos PPPoE, mas passam a constar como ${b('“Usuário removido”')}. O nome dela deixa de aparecer nelas e no ranking de técnicos.`));
+      }
+      if (d.metricDays > 0) items.push(li('fa-chart-simple', `A produtividade individual por dia (${udPlural(d.metricDays, 'dia', 'dias')}) é ${b('apagada')}. Os totais da equipe não mudam.`));
+      items.push(li('fa-clipboard-list', `A auditoria continua mostrando o que ela fez, com o e-mail dela${d.auditRows ? ' (' + udPlural(d.auditRows, 'registro', 'registros') + ')' : ''}. Esta exclusão também fica registrada, com o seu nome.`));
+      let transfer = '';
+      if (d.open > 0) {
+        const extra = [d.pending ? udPlural(d.pending, 'pendente de contato', 'pendentes de contato') : '', d.running ? udPlural(d.running, 'em atendimento agora', 'em atendimento agora') : ''].filter(Boolean).join(', ');
+        transfer = `<div class="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 space-y-2.5">
+          <div class="text-amber-200 leading-relaxed"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>${b(udPlural(d.open, 'verificação em aberto', 'verificações em aberto'))}${extra ? ' (' + extra + ')' : ''} precisam de um novo responsável. O prazo e as observações já escritas ficam; o atendimento em andamento recomeça do zero e a troca fica registrada no histórico.</div>
+          ${cands.length ? `<label class="block text-slate-300 font-bold uppercase tracking-wider">Transferir para</label>
+          <select id="ud-to" onchange="udSet()" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-400">
+            <option value="">Escolha o técnico…</option>
+            ${cands.map(c => `<option value="${esc(c.id)}">${esc(c.name)} · ${esc(SHIFT_NAMES[c.shift] || c.shift)} · ${udPlural(openByEmail.get(c.email) || 0, 'em aberto', 'em aberto')}</option>`).join('')}
+          </select>` : `<div class="text-rose-300 font-bold">Não há outro técnico aprovado para receber. Aprove ou cadastre um técnico antes de excluir este usuário.</div>`}
+        </div>`;
+      }
+      byId('ud-body').innerHTML = `
+        <div class="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-3.5 text-slate-300 leading-relaxed"><div class="text-rose-200 font-extrabold mb-2 uppercase tracking-wider text-[11px]">O que acontece ao excluir</div><ul class="space-y-2">${items.join('')}</ul></div>
+        ${transfer}
+        <div class="rounded-xl bg-slate-950 border border-slate-800 p-3 text-slate-400 leading-relaxed"><i class="fa-solid fa-shield-halved text-emerald-400 mr-1.5"></i>Tudo é feito de uma vez só: se algo falhar, nada é alterado. Para ter um ponto de volta, faça um backup antes (menu ${b('Sistema')}).</div>
+        <div>
+          <label for="ud-email" class="block text-slate-300 font-bold mb-1">Para confirmar, digite o e-mail ${b(esc(d.user.email))}</label>
+          <input id="ud-email" type="text" autocomplete="off" spellcheck="false" oninput="udSet()" onkeydown="if(event.key==='Enter'){event.preventDefault();udConfirm()}" placeholder="${esc(d.user.email)}" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono focus:outline-none focus:border-rose-500">
+        </div>`;
+      udSet();
+    }
+    function udSet() {
+      const d = ud.data; if (!d) return;
+      const mail = (byId('ud-email') || {}).value || '';
+      const to = (byId('ud-to') || {}).value || '';
+      byId('ud-ok').disabled = ud.busy || mail.trim().toLowerCase() !== String(d.user.email).toLowerCase() || (d.open > 0 && !to);
+    }
+    async function udConfirm() {
+      const d = ud.data; if (!d || ud.busy) return;
+      udSet(); if (byId('ud-ok').disabled) return;
+      ud.busy = true; udSet();
+      const ok = byId('ud-ok'); const label = ok.innerHTML; ok.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Excluindo…';
+      const r = await sysApi('POST', 'admin/users/delete', { id: d.user.id, transferTo: (byId('ud-to') || {}).value || '', confirmEmail: byId('ud-email').value });
+      ud.busy = false; ok.innerHTML = label;
+      if (!r.ok) {
+        showToast((r.data && r.data.error) || 'Não foi possível excluir o usuário.', r.status === 409 ? 'warning' : 'error');
+        if (r.status === 401) return;
+        if (r.status === 404 || r.status === 409) { closeModal('modal-user-delete'); await refreshFromServer(true); } else udSet();
+        return;
+      }
+      closeModal('modal-user-delete');
+      ud.id = null; ud.data = null;
+      showToast(`${d.user.name} foi excluído.` + (r.data.moved ? ` ${udPlural(r.data.moved, 'verificação em aberto foi transferida', 'verificações em aberto foram transferidas')} para ${r.data.to}.` : ''), 'success');
+      await refreshFromServer(true);
     }
 
     function openModalUserProfile(userId = null) {
@@ -7457,6 +7578,6 @@
     }, true);
 
   </script>
-  <script src="api-adapter.js?v=1.8.11"></script>   <!-- ?v= força o navegador a buscar a versão nova -->
+  <script src="api-adapter.js?v=1.8.12"></script>   <!-- ?v= força o navegador a buscar a versão nova -->
 </body>
 </html>

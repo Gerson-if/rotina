@@ -44,6 +44,7 @@ flowchart LR
 |---|---|
 | `Api.php` | Roteamento (`api.php?r=...`) e os endpoints de leitura/escrita |
 | `Sync.php` | **Grava** alterações de verificações, usuários e procedimentos: valida, aplica permissões, controla versão e gera os eventos de auditoria, tudo em transação |
+| `UserDeletion.php` | Exclusão **definitiva** de usuário, em transação: transfere as verificações em aberto, passa o histórico para o “Usuário removido” e preserva a auditoria |
 | `Redistribution.php` | Regra e execução da redistribuição automática e da designação de pendências |
 | `Auth.php` | Sessão por cookie assinado (HMAC-SHA256), relida do banco a cada requisição |
 | `Http.php` | Entrada/saída JSON, limite de tentativas por IP, erros (`HttpError`) |
@@ -139,6 +140,8 @@ Métodos que alteram dados exigem **POST** e o cabeçalho anti-CSRF; a sessão v
 | `admin/redistribution/run` | POST | ADM | Simular (`dry`) ou executar agora |
 | `admin/pending/assign` | POST | ADM | Designar uma pendência (`id`, `techId` opcional; sem `techId` usa o automático) |
 | `admin/redistribution/suggest` | POST | ADM | Sugere técnicos para N novas demandas pela mesma regra. **Sem uso na interface atual** (reservada) |
+| `admin/users/delete-preview` | GET | ADM | O que a exclusão do usuário (`id`) afeta: verificações em aberto/pendentes/em atendimento/concluídas, eventos, métricas e auditoria |
+| `admin/users/delete` | POST | ADM | Exclui definitivamente (`id`, `confirmEmail`; `transferTo` obrigatório se houver verificações em aberto). Erros: `NEEDS_TRANSFER`, `VALIDATION`, `NOT_FOUND` |
 | `admin/db-test` | POST | ADM | Testa a conexão com o banco |
 | `admin/backup`, `.../download`, `.../delete`, `.../prune`, `.../restore` | POST/GET | ADM | Backup e restauração |
 | `admin/update` · `admin/rollback` | POST | ADM | Atualizar por `.zip` / voltar a versão anterior |

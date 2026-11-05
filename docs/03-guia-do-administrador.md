@@ -61,7 +61,19 @@ A lista global de **todas** as verificações, com busca por PPPoE e filtros por
   ou **rejeite**. Um cadastro não aprovado não entra no sistema.
 - **Gestão de usuários e técnicos.** Cadastre colaboradores (**Novo Técnico / Usuário**) e, em cada um, edite **nome, e-mail,
   perfil (Técnico ou Administrador) e turno** (a lista inclui *Geral (ADM)*) e **redefina a senha**. Há **busca** por nome,
-  e-mail ou turno e atalhos *Todos / Técnicos / ADM* com a contagem de cada um. O sistema **não permite ficar sem nenhum administrador ativo**.
+  e-mail ou turno e atalhos *Todos / Técnicos / ADM* com a contagem de cada um. A lista é **paginada** (10, 20 ou 50 por página,
+  com *Ir para*); mudar a busca ou o filtro volta à primeira página. O sistema **não permite ficar sem nenhum administrador ativo**.
+- **Excluir um usuário definitivamente.** O botão **Excluir** (vermelho, em cada linha; você não aparece na sua própria linha) abre
+  um aviso que mostra **o que vai acontecer antes** de você confirmar:
+  - **Não tem volta**: a conta é apagada e a pessoa perde o acesso na hora (só um backup restaura). Vale fazer um backup antes.
+  - **Verificações em aberto** dela precisam de novo responsável: você **escolhe o técnico** que vai recebê-las. O prazo e as observações
+    já escritas ficam; o atendimento em andamento recomeça; a troca aparece na linha do tempo. Sem outro técnico aprovado, não há como excluir.
+  - **Verificações concluídas** ficam nos totais, gráficos e no histórico dos PPPoE, mas passam a constar como **“Usuário removido”**
+    (o nome dela deixa de aparecer ali e no ranking de técnicos).
+  - A **produtividade individual por dia** dela é apagada; os totais da equipe não mudam.
+  - A **auditoria** continua mostrando o que ela fez, com o e-mail e “(excluído)”, e registra a exclusão com o seu nome.
+  - Para confirmar, **digite o e-mail** do usuário. Tudo acontece numa única operação: se algo falhar, nada é alterado.
+  - Não é possível excluir a si mesmo, nem o único administrador ativo.
 
 ## 5. Sistema
 

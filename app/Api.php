@@ -58,6 +58,12 @@ final class Api
                                               if ($vid === '') throw new HttpError(400, 'Verificação não informada.', 'VALIDATION');
                                               $tid = is_string($b['techId'] ?? null) && $b['techId'] !== '' ? $b['techId'] : null;
                                               Http::json(Redistribution::designate($vid, $tid, $u['id'], Util::clientIp())); return;
+                case 'admin/users/delete-preview': $u = self::admin();
+                                              Http::json(UserDeletion::preview($u, (string) ($_GET['id'] ?? ''))); return;
+                case 'admin/users/delete':    self::needPost($method); $u = self::admin(); $b = Http::body(10 * 1024);
+                                              Http::json(UserDeletion::delete($u, is_string($b['id'] ?? null) ? $b['id'] : '',
+                                                  is_string($b['transferTo'] ?? null) && $b['transferTo'] !== '' ? $b['transferTo'] : null,
+                                                  is_string($b['confirmEmail'] ?? null) ? $b['confirmEmail'] : '', Util::clientIp())); return;
                 case 'admin/db-test':         self::needPost($method); self::admin(); Http::json(System::dbTest()); return;
                 case 'admin/backup':          self::needPost($method); $u = self::admin(); $i = System::createBackup();
                                               Util::audit($u['id'], 'BACKUP_MANUAL', 'backup', $i['name'], null, Util::clientIp()); Http::json($i, 201); return;
@@ -804,7 +810,8 @@ final class Api
         $vals = [];
         if (!empty($_GET['entity'])) { $where[] = 'a.entity = ?'; $vals[] = (string) $_GET['entity']; }
         if (!empty($_GET['entityId'])) { $where[] = 'a.entity_id = ?'; $vals[] = (string) $_GET['entityId']; }
-        $rows = Db::all('SELECT a.id, a.event, a.entity, a.entity_id, a.details, a.ip, a.created_at, u.email AS user_email
+        $rows = Db::all('SELECT a.id, a.event, a.entity, a.entity_id, a.details, a.ip, a.created_at,
+                                COALESCE(u.email, CONCAT(JSON_UNQUOTE(JSON_EXTRACT(a.details, "$.autorRemovido")), " (excluído)")) AS user_email
                          FROM audit_log a LEFT JOIN users u ON u.id = a.user_id '
             . ($where ? 'WHERE ' . implode(' AND ', $where) . ' ' : '') . "ORDER BY a.id DESC LIMIT $limit", $vals);
         foreach ($rows as &$r) { if ($r['details'] !== null) $r['details'] = json_decode((string) $r['details'], true); }
