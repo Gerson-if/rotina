@@ -128,7 +128,6 @@ final class Api
     {
         $b = Http::body(200 * 1024);
         $ip = Util::clientIp();
-        Http::rateLimit("login:$ip", 30, 900, 'Muitas tentativas. Aguarde alguns minutos.');
 
         $email = is_string($b['email'] ?? null) ? strtolower(trim($b['email'])) : '';
         $pass = is_string($b['password'] ?? null) ? $b['password'] : '';
@@ -141,7 +140,7 @@ final class Api
         $ok = password_verify($pass, $user ? $user['password_hash'] : Util::DUMMY_HASH);
 
         // Sem bloqueio de conta por tentativas falhas: errar a senha nunca trava o usuário.
-        // (Segue valendo só o limite por IP acima, contra rajadas automáticas.)
+        // Também não há limite por IP: nenhuma tentativa de login é bloqueada.
         if (!$user || !$ok) {
             Util::audit($user ? $user['id'] : null, 'LOGIN_FAIL', null, null, ['email' => $email], $ip);
             throw new HttpError(401, 'Credenciais inválidas. Verifique seu e-mail e senha.');
@@ -158,7 +157,6 @@ final class Api
     private static function register(): void
     {
         $b = Http::body(200 * 1024);
-        Http::rateLimit('register:' . Util::clientIp(), 10, 3600, 'Muitas solicitações de cadastro. Tente mais tarde.');
 
         $name = is_string($b['name'] ?? null) ? trim($b['name']) : '';
         $email = is_string($b['email'] ?? null) ? strtolower(trim($b['email'])) : '';

@@ -195,7 +195,7 @@ O instalador gera o essencial (`db`, `secret`, `tz`). As demais chaves usam o pa
 ## 8. Segurança (resumo técnico)
 
 - Senhas com **bcrypt**; mínimo de 4 caracteres (sistema interno). Tempo de resposta igual para e-mail inexistente.
-- **Não há bloqueio de conta por tentativas erradas**: errar a senha nunca trava o usuário. Há **limite por IP** (30 tentativas de login por 15 min; 10 pedidos de cadastro por hora), gravado no banco.
+- **Não há bloqueio de conta por tentativas erradas**: errar a senha nunca trava o usuário. Também **não há limite de tentativas por IP** no login nem no cadastro.
 - Sessão em cookie `httpOnly` + `SameSite=Strict`, assinada; **relida do banco a cada requisição** (bloquear, rebaixar ou trocar senha vale na hora).
 - Permissões **no servidor**; cabeçalho anti-CSRF; campos de texto curtos filtrados contra XSS; CSV protegido contra injeção de fórmula.
 - Auditoria de login, criação, alteração, backup e configuração, com IP.

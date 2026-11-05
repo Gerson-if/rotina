@@ -1,5 +1,8 @@
 # Histórico de versões
 
+## 1.8.11
+- **Removido o limite de tentativas por IP.** O login (antes 30 tentativas em 15 min) e o pedido de cadastro (antes 10 por hora) não são mais bloqueados por IP; ninguém recebe mais "Muitas tentativas". A falha de login continua registrada na auditoria. Mantido apenas o limite de trocas de foto por usuário. Sem migration.
+
 ## 1.8.10
 - **Aviso das observações, menor e mais direto.** Na janela de atendimento, a caixa grande acima do campo ("Muito importante: escreva o que você fez e o que encontrou. Se ficar em branco, ninguém sabe o que foi feito, e você não consegue concluir.") foi trocada por **uma linha curta logo abaixo do campo**, na mesma linha do "Salva sozinho": em amarelo, "Escreva o que fez e o que encontrou para poder concluir." (ou "Já há texto de antes: acrescente o que você fez."); em verde, "Anotado." quando há texto novo. O exemplo dentro do campo também ficou mais curto ("O que o cliente relatou, o que você fez e como ficou."), e o campo ganha mais espaço. A regra não mudou: para concluir é preciso escrever algo novo (mínimo de 5 caracteres), e o selo **Obrigatório** continua no título. Documentação atualizada. Sem migration.
 

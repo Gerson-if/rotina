@@ -195,7 +195,7 @@ Opções avançadas: `config/config.sample.php` (todas comentadas).
 
 ## 9. Segurança
 
-* Senhas com bcrypt (custo 12), mínimo de 4 caracteres (sistema interno: pode ser simples), tempo de resposta igual para e-mail inexistente. **Não há bloqueio de conta por senha errada** (errar nunca trava o usuário); o freio é o **limite por IP**, gravado no banco: 30 tentativas de login por 15 min e 10 pedidos de cadastro por hora.
+* Senhas com bcrypt (custo 12), mínimo de 4 caracteres (sistema interno: pode ser simples), tempo de resposta igual para e-mail inexistente. **Não há bloqueio de conta por senha errada** (errar nunca trava o usuário); também **não há limite de tentativas por IP** no login nem no cadastro.
 * Permissões **checadas no servidor**; sessão em cookie `httpOnly` + `SameSite=Strict` assinado (HMAC-SHA256), relido do banco a cada requisição (bloquear/rebaixar/trocar senha vale na hora); cabeçalho anti-CSRF.
 * Anti-XSS armazenado nos campos curtos; CSV exportado protegido contra injeção de fórmula; auditoria de quem fez o quê (com IP).
 * `config.php` com permissão 640; `app/`, `config/`, `storage/`, `bin/`, `migrations/` fora da web; modo manutenção; erros PHP nunca exibidos ao visitante.

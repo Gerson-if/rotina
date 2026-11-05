@@ -80,7 +80,7 @@ curl -s http://IP/api.php?r=healthz     # monitoramento
 ## Segurança em poucas linhas
 
 Senhas com bcrypt; permissões conferidas **no servidor**; sessão em cookie assinado e relida do banco a cada requisição;
-proteção contra CSRF; limite de tentativas por IP; auditoria de quem fez o quê; pastas internas fora da web.
+proteção contra CSRF; auditoria de quem fez o quê; pastas internas fora da web.
 Lista completa em [Arquitetura](docs/05-arquitetura-e-api.md#8-segurança-resumo-técnico) e [Instalação e operação](docs/06-instalacao-e-operacao.md#9-segurança).
 ## 🤝 Contribuições
 
