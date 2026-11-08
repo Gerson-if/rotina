@@ -84,6 +84,7 @@ Princípios: **sem framework**, `declare(strict_types=1)`, SQL com parâmetros, 
 | Atendimento | `ligou`, `nao_atende`, `resolvido`, `os_criada`, `action_id`, `obs`, `em_execucao`, `started_at`, `finished_at`, `finalizado`, `handle_time_min` |
 | Pendência | `pending_contact`, `pending_since`, `pending_note` |
 | Passagem de bastão | `handoff_note`, `handoff_from`, `handoff_at` |
+| Reatribuição pelo ADM | `reassigned_by` (quem reatribuiu), `reassigned_at`; a API devolve `reatribuidaPor` (nome) e `reatribuidaEm` |
 | Redistribuição | `redist_count` (trocas feitas pelo sistema), `redist_at` (última troca) |
 | Controle | `version` (concorrência otimista), `active_pppoe` (coluna que garante **uma verificação aberta por PPPoE**) |
 
@@ -186,6 +187,7 @@ São **sempre aditivas** e aplicadas em ordem; o checksum impede alterar uma já
 | 014 | Índices para grande volume (gráficos, sincronização, redistribuição) |
 | 015 | Passagem de bastão (`handoff_*`) |
 | 016 | Retrabalho: `root_id` (cadeia de reaberturas) + preenchimento das reaberturas antigas |
+| 017 | Tag "Reatribuída por X": `reassigned_by`, `reassigned_at` |
 
 ## 5. API
 

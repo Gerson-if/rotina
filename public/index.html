@@ -2235,6 +2235,32 @@
     </div>
   </div>
 
+  <!-- MODAL: REABRIR VERIFICAÇÃO (ADM escolhe para qual técnico direcionar) -->
+  <div id="modal-reopen-dest" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[85] flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-amber-500/40 rounded-3xl w-full max-w-md shadow-2xl animate-fadeIn overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="rd-title">
+      <div class="p-5 flex items-start gap-3.5">
+        <div class="w-11 h-11 shrink-0 rounded-2xl flex items-center justify-center text-lg bg-amber-500/20 text-amber-300 border border-amber-500/30"><i class="fa-solid fa-rotate-left"></i></div>
+        <div class="min-w-0 flex-1">
+          <h3 id="rd-title" class="text-base font-extrabold text-white">Reabrir e direcionar a quem?</h3>
+          <div class="mt-1.5 text-xs text-slate-300 leading-relaxed space-y-2">
+            <p>PPPoE <span id="rd-pppoe" class="font-mono font-bold text-slate-100"></span></p>
+            <p>Será criada uma <b class="text-slate-100">nova verificação (REABERTA)</b>. A atual continua concluída, com o resultado preservado.</p>
+            <div>
+              <label for="rd-tech" class="block font-bold text-slate-300 uppercase tracking-wider mb-1 text-[10px]">Direcionar para o técnico</label>
+              <select id="rd-tech" onchange="rdSync()" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-500"></select>
+            </div>
+            <p id="rd-hint" class="text-[11px] text-slate-400"></p>
+            <p id="rd-warn" class="hidden rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 px-3 py-2 text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Este é o mesmo técnico que concluiu a verificação anterior. O recomendado é direcionar a outro técnico.</p>
+          </div>
+        </div>
+      </div>
+      <div class="px-5 pb-5 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2">
+        <button type="button" onclick="rdDone(false)" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition">Não, manter concluída</button>
+        <button type="button" id="rd-ok" onclick="rdDone(true)" class="px-5 py-2.5 rounded-xl font-extrabold text-xs transition flex items-center justify-center gap-2 text-white bg-amber-600 hover:bg-amber-500">Reabrir e direcionar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: CONFIRMAÇÃO DO SISTEMA (substitui o pop-up do navegador) -->
   <div id="modal-confirm" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[90] flex items-center justify-center p-4 hidden">
     <div id="cf-box" class="bg-slate-900 border rounded-3xl w-full max-w-md shadow-2xl animate-fadeIn overflow-hidden" role="alertdialog" aria-modal="true" aria-labelledby="cf-title" aria-describedby="cf-body">
@@ -2649,6 +2675,24 @@
         ${quem || ago ? `<div class="text-amber-200/70 mt-0.5">${quem}${quem && ago ? ' · ' : ''}${ago}</div>` : ''}
         ${t.entregaNota ? `<div class="text-[10px] font-black uppercase tracking-wider text-amber-200/70 mt-2">O que o técnico anterior registrou</div>
         <div class="mt-0.5 text-slate-100 whitespace-pre-wrap break-words leading-relaxed">${esc(t.entregaNota)}</div>` : ''}</div>`;
+    }
+    // Reatribuição pelo ADM: o técnico que RECEBEU a verificação vê quem reatribuiu e há quanto tempo. Some quando ela é concluída ou deixada pendente.
+    const hasReassign = (t) => !!(t.reatribuidaPor && !t.pendente && !t.finalizado);
+    const reassignAgo = (t) => {
+      if (!t.reatribuidaEm) return '';
+      const m = Math.max(0, Math.round((srvNow() - naiveMs(t.reatribuidaEm)) / 60000));
+      return m < 1 ? 'agora há pouco' : m < 60 ? `há ${m} min` : m < 2880 ? `há ${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}` : `há ${Math.floor(m / 1440)} dias`;
+    };
+    function reassignTag(t) {
+      if (!hasReassign(t)) return '';
+      return `<span title="Reatribuída por ${esc(t.reatribuidaPor)} ${esc(reassignAgo(t))}" class="bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-400/40 text-[10px] px-2 py-0.5 rounded inline-flex items-center gap-1 max-w-[14rem]"><i class="fa-solid fa-shuffle shrink-0"></i><span class="shrink-0">REATRIBUÍDA</span><span class="truncate font-semibold text-cyan-200/80">por ${esc(t.reatribuidaPor)}</span></span>`;
+    }
+    function reassignStrip(t) {
+      if (!hasReassign(t)) return '';
+      const ago = reassignAgo(t);
+      return `<div class="rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-xs">
+        <div class="font-bold text-cyan-300 flex items-center gap-2"><i class="fa-solid fa-shuffle"></i> Verificação reatribuída a você</div>
+        <div class="text-cyan-100/80 mt-0.5">Por <b class="text-slate-100">${esc(t.reatribuidaPor)}</b>${ago ? ' · ' + ago : ''}</div></div>`;
     }
     function repeatStrip(t, auditCall, extra) {
       const base = 'flex items-center gap-2 rounded-xl border px-3 h-9 shrink-0 text-[11px] ' + (extra || '');
@@ -4526,6 +4570,7 @@
       const newTech = state.users.find(u => u.email === newTechEmail) || { name: newTechEmail };
 
       if (task.pendente) { task.pendente = false; task.pendenteNota = ''; task.pendenteDesde = null; task.emExecucao = false; }
+      if (newTechEmail !== task.techEmail && !task.finalizado) { task.reatribuidaPor = state.currentUser.name; task.reatribuidaEm = naiveStr(srvNow()); }   // tag "Reatribuída por X" para o novo técnico
       task.techEmail = newTechEmail;
       task.date = newDate;
       task.shift = newShift;
@@ -5443,6 +5488,7 @@
               <div class="min-w-0">
                 <div class="text-xs font-bold ${overdue ? 'text-rose-300' : 'text-slate-300'}">${overdue ? 'Prazo vencido — vale começar por esta' : 'Aguardando início'}</div>
                 ${t.createdAt ? `<div class="text-[10px] text-slate-500"><i class="fa-regular fa-hourglass-half mr-1"></i>na fila há <span data-since="${esc(t.createdAt)}" data-mode="ago" class="font-semibold text-slate-400">—</span></div>` : ''}
+                ${hasReassign(t) ? `<div class="text-[10px] text-cyan-300 truncate" title="Reatribuída por ${esc(t.reatribuidaPor)}"><i class="fa-solid fa-shuffle mr-1"></i>Reatribuída por <b class="font-semibold text-cyan-200">${esc(t.reatribuidaPor)}</b>${reassignAgo(t) ? ' · ' + esc(reassignAgo(t)) : ''}</div>` : ''}
               </div>
             </div>`}
             <div class="flex-1"></div>
@@ -5539,7 +5585,7 @@
       byId('wk-copy').dataset.copy = t.pppoe;
       byId('wk-sub').innerHTML = `${kindBadge(t)} <span class="chip"><i class="fa-solid fa-layer-group"></i>${esc(lote)}</span> <span class="chip"><i class="fa-regular fa-calendar"></i>${esc(vfDate(t.date))}</span> <span class="chip">${esc(t.shift || '')}</span> <span class="chip">${esc(t.priority || 'NORMAL')}</span>`;
       byId('wk-timer').innerHTML = t.emExecucao ? `<i class="fa-regular fa-clock text-indigo-300 text-xs mr-1"></i><span data-since="${esc(t.startedAt || '')}" data-mode="clock">--:--:--</span>` : '';
-      byId('wk-kind-note').innerHTML = handoffStrip(t) + repeatStrip(t, "openAuditModal('" + t.id + "', 'others')");
+      byId('wk-kind-note').innerHTML = reassignStrip(t) + handoffStrip(t) + repeatStrip(t, "openAuditModal('" + t.id + "', 'others')");
       byId('wk-action').innerHTML = state.actions.map(a => `<option value="${esc(a.id)}" ${t.actionId === a.id ? 'selected' : ''}>${esc(a.label)}</option>`).join('');
       byId('wk-obs').value = t.obs || '';
       if (!workObsBase.has(taskId)) workObsBase.set(taskId, t.obs || '');   // o que já existia antes do técnico escrever
@@ -5646,25 +5692,59 @@
         : `Este PPPoE já está com ${who}, aguardando início. Aguarde a conclusão ou assuma pela aba "Verificações dos outros técnicos".`;
     }
 
+    // ADM: pergunta para qual técnico direcionar a reabertura. Sugere OUTRO técnico (do mesmo turno e com menos verificações em aberto,
+    // quando houver); o mesmo técnico continua permitido, mas com aviso. Devolve o e-mail escolhido, ou null se cancelou.
+    let rdResolve = null, rdOrigEmail = '';
+    function askReopenDest(task) {
+      return new Promise((resolve) => {
+        if (rdResolve) rdResolve(null);   // só uma por vez
+        rdResolve = resolve; rdOrigEmail = task.techEmail;
+        const techs = state.users.filter(u => u.role === 'TEC' && u.status === 'APROVADO');
+        const load = (u) => state.tasks.filter(x => x.techEmail === u.email && !x.finalizado && !x.pendente).length;
+        const others = techs.filter(u => u.email !== task.techEmail)
+          .sort((a, b) => ((a.shift === task.shift ? 0 : 1) - (b.shift === task.shift ? 0 : 1)) || (load(a) - load(b)) || a.name.localeCompare(b.name, 'pt-BR'));
+        const suggested = others[0] || techs.find(u => u.email === task.techEmail) || techs[0];
+        byId('rd-pppoe').textContent = task.pppoe;
+        byId('rd-tech').innerHTML = techs.map(u => `<option value="${esc(u.email)}">${esc(u.name)} (${esc(u.shift)})${u.email === task.techEmail ? ' — concluiu a anterior' : ''}</option>`).join('');
+        if (suggested) byId('rd-tech').value = suggested.email;
+        byId('rd-hint').textContent = others.length ? 'Sugestão: outro técnico, do mesmo turno e com menos verificações em aberto. Você pode trocar.' : 'Não há outro técnico aprovado: a verificação só pode ir para o mesmo técnico.';
+        rdSync();
+        openModal('modal-reopen-dest');
+        setTimeout(() => byId('rd-tech').focus(), 50);
+      });
+    }
+    function rdSync() {
+      const v = byId('rd-tech').value;
+      byId('rd-warn').classList.toggle('hidden', !(v && v === rdOrigEmail));
+      byId('rd-ok').disabled = !v;
+    }
+    function rdDone(ok) {
+      const r = rdResolve; rdResolve = null;
+      const v = ok ? byId('rd-tech').value : null;
+      closeModal('modal-reopen-dest');
+      if (r) r(v || null);
+    }
     // Reabrir uma verificação concluída NÃO a altera: cria uma NOVA verificação da classe especial REABERTA
-    // (ligada à anterior), que cai na fila de quem reabriu (técnico) ou do mesmo técnico (ADM).
+    // (ligada à anterior), que cai na fila de quem reabriu (técnico) ou do técnico que o ADM escolher (de preferência outro, não o que concluiu).
     // Pede confirmação antes de reabrir, para ninguém reabrir sem querer. Devolve true só se a reabertura foi feita.
     async function reopenAsNew(task) {
       if (!task.finalizado) return false;
       const aberta = state.tasks.find(x => x.pppoe === task.pppoe && !x.finalizado);
       if (aberta) { showToast(openOwnerMsg(aberta), 'warning'); return false; }
       const isAdm = state.currentUser.role === 'ADM';
-      const donoFila = isAdm ? ((state.users.find(u => u.email === task.techEmail) || {}).name || task.techEmail) : null;
-      const destino = isAdm
-        ? `Ela vai para a fila de <b class="text-slate-100">${esc(donoFila)}</b>.`
-        : 'Ela vai para a <b class="text-slate-100">sua fila</b>.';
-      const ok = await askConfirm({
-        tone: 'warn', icon: 'fa-rotate-left', title: 'Reabrir esta verificação?', ok: 'Sim, reabrir', cancel: 'Não, manter concluída',
-        html: `<p>PPPoE <span class="font-mono font-bold text-slate-100">${esc(task.pppoe)}</span></p>`
-          + `<p>Será criada uma <b class="text-slate-100">nova verificação (REABERTA)</b>. ${destino}</p>`
-          + `<p class="text-slate-400">A verificação atual continua concluída, com o resultado preservado.</p>`,
-      });
-      if (!ok) return false;
+      let destEmail = state.currentUser.email;
+      if (isAdm) {
+        destEmail = await askReopenDest(task);   // o ADM escolhe para quem direcionar (de preferência não o mesmo técnico)
+        if (!destEmail) return false;
+      } else {
+        const ok = await askConfirm({
+          tone: 'warn', icon: 'fa-rotate-left', title: 'Reabrir esta verificação?', ok: 'Sim, reabrir', cancel: 'Não, manter concluída',
+          html: `<p>PPPoE <span class="font-mono font-bold text-slate-100">${esc(task.pppoe)}</span></p>`
+            + `<p>Será criada uma <b class="text-slate-100">nova verificação (REABERTA)</b>. Ela vai para a <b class="text-slate-100">sua fila</b>.</p>`
+            + `<p class="text-slate-400">A verificação atual continua concluída, com o resultado preservado.</p>`,
+        });
+        if (!ok) return false;
+      }
       // Durante a confirmação o estado pode ter mudado (sincronização, outro técnico): confere de novo antes de criar
       const aberta2 = state.tasks.find(x => x.pppoe === task.pppoe && !x.finalizado);
       if (aberta2) { showToast(openOwnerMsg(aberta2), 'warning'); return false; }
@@ -5672,7 +5752,7 @@
       // 'chain'/'reopens'; aqui a tela já mostra o mesmo na hora, para o PPPoE não "sumir" nem duplicar enquanto sincroniza.
       const root = task.chain || task.id, reopensN = (task.reopens || 0) + 1;
       state.tasks.unshift({
-        id: 'tsk-' + Date.now(), techEmail: isAdm ? task.techEmail : state.currentUser.email,
+        id: 'tsk-' + Date.now(), techEmail: destEmail,
         shift: task.shift, date: todayStr, pppoe: task.pppoe, lote: task.lote, priority: task.priority || 'NORMAL', obs: '',
         kind: 'REABERTA', prevCount: (task.prevCount || 0) + 1, reopenOf: task.id, single: !!task.single,
         chain: root, reopens: reopensN,
@@ -5681,7 +5761,8 @@
       });
       state.tasks.forEach(x => { if (x.id === root || x.chain === root) { x.chain = root; x.reopens = reopensN; } });
       saveStorage();
-      showToast('Verificação reaberta como nova verificação (REABERTA). A anterior continua concluída, com o resultado preservado.', 'success');
+      const destName = (state.users.find(u => u.email === destEmail) || {}).name || destEmail;
+      showToast(isAdm ? `Verificação reaberta (REABERTA) e direcionada a ${destName}. A anterior continua concluída, com o resultado preservado.` : 'Verificação reaberta como nova verificação (REABERTA). A anterior continua concluída, com o resultado preservado.', 'success');
       renderTecDashboard();
       return true;
     }
@@ -5829,6 +5910,7 @@
       if (note.length < 3 || note.length > PEND_NOTE_MAX) { byId('pending-err').classList.remove('hidden'); byId('pending-note').focus(); return; }
       t.pendente = true; t.pendenteNota = note; t.pendenteDesde = naiveStr(srvNow()); t.emExecucao = false;
       t.entregaNota = ''; t.entregaDe = ''; t.entregaEm = null;   // vale a nota nova
+      t.reatribuidaPor = ''; t.reatribuidaEm = null;
       pendingLeaveId = null;
       saveStorage();
       workObsBase.delete(t.id);
@@ -5865,6 +5947,7 @@
         t.obs = ''; workObsBase.delete(taskId);
       }
       t.techEmail = me.email; t.pendente = false; t.pendenteNota = ''; t.pendenteDesde = null;
+      t.reatribuidaPor = ''; t.reatribuidaEm = null;
       t.emExecucao = false; t.startedAt = null;
       saveStorage();
       showToast('Pendência assumida: está em Minha Verificação. Inicie quando estiver pronto.', 'success');
@@ -5931,6 +6014,7 @@
       const task = state.tasks.find(t => t.id === taskPendingTakeoverId);
       if (task) {
           task.techEmail = state.currentUser.email;   // quem assumiu e quando fica na auditoria (evento "Assumida")
+          task.reatribuidaPor = ''; task.reatribuidaEm = null;
       }
 
       taskPendingTakeoverId = null;
@@ -6041,7 +6125,7 @@
       document.getElementById('det-pppoe').innerText = task.pppoe;
       document.getElementById('det-copy').dataset.copy = task.pppoe;
       document.getElementById('det-kind-badge').innerHTML = kindBadge(task);
-      document.getElementById('det-kind-note').innerHTML = handoffStrip(task) + repeatStrip(task, "openAuditModal('" + task.id + "', 'others')") + pendStrip(task);
+      document.getElementById('det-kind-note').innerHTML = reassignStrip(task) + handoffStrip(task) + repeatStrip(task, "openAuditModal('" + task.id + "', 'others')") + pendStrip(task);
       document.getElementById('det-id').innerText = task.id;
       document.getElementById('det-tech').innerText = tech.name;
       document.getElementById('det-date-shift').innerText = `${task.date} (${task.shift})`;
@@ -7615,6 +7699,7 @@
       'modal-work': () => closeWorkModal(),   // guarda o que foi escrito
       'modal-pending': () => { pendingLeaveId = null; closeModal('modal-pending'); },
       'modal-confirm': () => cfDone(false),   // Esc = cancelar
+      'modal-reopen-dest': () => rdDone(false),   // Esc = cancelar
       'modal-confirm-action-delete': () => { deletingActionId = null; closeModal('modal-confirm-action-delete'); },
     };
     document.addEventListener('keydown', (e) => {
@@ -7634,6 +7719,6 @@
     }, true);
 
   </script>
-  <script src="api-adapter.js?v=1.8.14"></script>   <!-- ?v= força o navegador a buscar a versão nova -->
+  <script src="api-adapter.js?v=1.8.15"></script>   <!-- ?v= força o navegador a buscar a versão nova -->
 </body>
 </html>

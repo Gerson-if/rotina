@@ -130,7 +130,7 @@ Em ordem — qualquer falha **antes da troca** deixa o sistema atual intacto:
 
 **Regra de ouro para quem prepara pacotes:** migrations só **aditivas** (criar tabela/coluna anulável ou com padrão). Remover ou
 renomear coluna é feito em duas versões. Assim o código antigo continua funcionando com o banco novo e o rollback nunca exige mexer nos dados.
-Nunca edite uma migration já aplicada — o sistema recusa (checksum). Novas mudanças = novo arquivo `migrations/016_...sql`.
+Nunca edite uma migration já aplicada — o sistema recusa (checksum). Novas mudanças = novo arquivo `migrations/018_...sql`.
 
 ## 6. Backup e restauração
 
@@ -217,7 +217,7 @@ Opções avançadas: `config/config.sample.php` (todas comentadas).
 public/        ÚNICA pasta exposta na web: index.html, api-adapter.js, api.php, install.php (some após instalar)
 app/           código PHP (Api, Sync, Auth, Backup, Updater, Installer, Migrator, Jobs...)
 bin/rotina.php ferramenta de terminal   ·   ./rotina  atalho que roda como o dono dos arquivos
-migrations/    001 a 016 (lista em docs/05-arquitetura-e-api.md)   (novas: 017_...sql)
+migrations/    001 a 017 (lista em docs/05-arquitetura-e-api.md)   (novas: 018_...sql)
 config/        config.php (gerado pelo instalador, privado) · config.sample.php
 storage/       backups, logs, releases (cópias para rollback) — privado
 deploy/        modelos de Apache (IP e subpasta) e Nginx

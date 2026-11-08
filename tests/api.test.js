@@ -413,6 +413,52 @@ test('reatribuição de verificação em aberto não duplica o PPPoE e registra 
   assert.equal((await adm.req('GET', '/api/verification/audit?id=' + tk.id)).body.verification.kind, 'NORMAL');
 });
 
+test('reatribuição pelo ADM: o novo técnico vê "reatribuída por"; a tag sai ao concluir', async () => {
+  const login = `tag.${RUN}@telecom`;
+  const created = (await adm.sync({ tasks: { upsert: [mkTask({ n: 98, tech: T1, pppoe: login })] } })).body.tasks[0];
+  assert.equal(created.reatribuidaPor, '');
+  assert.equal(created.reatribuidaEm, null);
+  // em atendimento com o técnico 1; o ADM passa para o técnico 2
+  const running = (await tec1.sync({ tasks: { upsert: [{ ...created, emExecucao: true }] } })).body.tasks[0];
+  const moved = (await adm.sync({ tasks: { upsert: [{ ...running, techEmail: T2 }] } })).body.tasks[0];
+  assert.equal(moved.techEmail, T2);
+  assert.ok(moved.reatribuidaPor);
+  assert.ok(moved.reatribuidaEm);
+  // o técnico 2 enxerga a tag ao carregar o sistema
+  const seen = (await tec2.boot()).body.tasks.find(x => x.id === created.id);
+  assert.equal(seen.reatribuidaPor, moved.reatribuidaPor);
+  // outro ajuste do ADM (sem trocar de técnico) não apaga a tag
+  const same = (await adm.sync({ tasks: { upsert: [{ ...moved, priority: 'ALTA' }] } })).body.tasks[0];
+  assert.equal(same.reatribuidaPor, moved.reatribuidaPor);
+  // ao concluir, a tag sai
+  const wrote = (await tec2.sync({ tasks: { upsert: [{ ...same, obs: 'Conferi o sinal do cliente', actionId: 'TROCA_EQUIPAMENTO' }] } })).body.tasks[0];
+  const done = (await tec2.sync({ tasks: { upsert: [{ ...wrote, finalizado: true, emExecucao: false, resolvido: true }] } })).body.tasks[0];
+  assert.equal(done.finalizado, true);
+  assert.equal(done.reatribuidaPor, '');
+  assert.equal((await adm.sync({ tasks: { delete: [created.id] } })).status, 200);
+});
+
+test('reabrir pelo ADM: pode direcionar a outro técnico (não só ao que concluiu a anterior)', async () => {
+  const login = `reab.dest.${RUN}@telecom`;
+  const created = (await adm.sync({ tasks: { upsert: [mkTask({ n: 99, tech: T1, pppoe: login })] } })).body.tasks[0];
+  let x = (await tec1.sync({ tasks: { upsert: [{ ...created, emExecucao: true }] } })).body.tasks[0];
+  x = (await tec1.sync({ tasks: { upsert: [{ ...x, obs: 'Reiniciei a ONU', actionId: 'TROCA_EQUIPAMENTO' }] } })).body.tasks[0];
+  const O = (await tec1.sync({ tasks: { upsert: [{ ...x, finalizado: true, emExecucao: false, resolvido: true }] } })).body.tasks[0];
+  assert.equal(O.finalizado, true);
+  // o ADM reabre direcionando ao técnico 2
+  const r = await adm.sync({ tasks: { upsert: [{ ...mkTask({ n: 100, tech: T2, pppoe: login }), reopenOf: O.id }] } });
+  assert.equal(r.status, 200);
+  const R = r.body.tasks[0];
+  assert.equal(R.kind, 'REABERTA');
+  assert.equal(R.techEmail, T2);
+  assert.equal(R.repeatOf, O.id);
+  // a original continua concluída, com o técnico que a fez
+  const orig = (await adm.boot()).body.tasks.find(y => y.id === O.id);
+  assert.equal(orig.finalizado, true);
+  assert.equal(orig.techEmail, T1);
+  assert.equal((await adm.sync({ tasks: { delete: [R.id, O.id] } })).status, 200);
+});
+
 // ======================= v1.4.0: equipe online, perfil (bio) e indicadores =======================
 test('equipe: batimento marca online, logout marca offline, técnico vê os colegas', async () => {
   const t1 = await tec1.req('GET', '/api/team');

@@ -57,7 +57,7 @@ Todas as regras, com exemplos, estão em [Regras e fluxos](docs/04-regras-e-flux
 public/        ÚNICA pasta exposta na web: index.html, api-adapter.js, api.php, install.php (some após instalar)
 app/           código PHP (Api, Sync, Auth, Redistribution, Backup, Updater, Installer, Migrator, Jobs...)
 bin/rotina.php ferramenta de terminal   ·   ./rotina  atalho que roda como o dono dos arquivos
-migrations/    001 a 016 (alterações do banco, sempre aditivas)
+migrations/    001 a 017 (alterações do banco, sempre aditivas)
 config/        config.php (gerado pelo instalador, privado) · config.sample.php (todas as opções)
 storage/       backups, logs, releases (cópias para rollback), privado
 deploy/        modelos de Apache (IP e subpasta) e Nginx

@@ -22,6 +22,7 @@ Cada cartão informa o PPPoE, o prazo, a prioridade e a situação:
 | **Atrasada** | O prazo era antes de hoje e ainda não foi concluída. |
 | **Adicional** / **Reaberta** | O PPPoE já foi verificado antes / é uma reabertura de uma concluída. |
 | **RECEBIDA** + aviso âmbar | A verificação estava pendente de contato antes de chegar até você (veja a seção 6). |
+| **REATRIBUÍDA · por X** + aviso azul-claro | O administrador **X** passou esta verificação para você (mesmo que ela já estivesse em atendimento com outro técnico). O aviso some quando você conclui ou deixa pendente. |
 
 Clique no cartão para abrir a **janela de atendimento**.
 

@@ -40,7 +40,8 @@ stateDiagram-v2
 - **Deixar pendente:** sai da fila do técnico, guarda a nota e o momento (`pendente desde`), e encerra o "em atendimento".
 - **Assumir / receber pendência:** o novo técnico passa a ser o dono; a pendência sai da fila central; **o relógio de atendimento recomeça**
   (o tempo parado na fila nunca conta como atendimento).
-- **Reabrir:** não "desfaz" a conclusão. Cria uma **nova** verificação (veja a seção 3).
+- **Reabrir:** não "desfaz" a conclusão. Cria uma **nova** verificação (veja a seção 3). Quando é o **ADM** que reabre, ele escolhe **para qual técnico** ela vai (a tela sugere outro técnico, não o que concluiu a anterior; o mesmo técnico é permitido, com aviso). O técnico que reabre a própria verificação continua recebendo-a na sua fila.
+- **Reatribuir (ADM):** troca o dono da verificação aberta. O novo técnico recebe o selo **REATRIBUÍDA · por X**; o selo sai quando ela é concluída, deixada pendente, assumida por outro técnico ou entregue pela redistribuição.
 
 ## 2. Quem pode fazer o quê
 
@@ -111,6 +112,7 @@ O servidor confere tudo isso; a tela apenas esconde o que a pessoa não pode usa
 | Observações que existiam quando a pendência foi recebida | **Auditoria** (evento da troca, bloco "Observações anteriores", até 2000 caracteres) |
 | Origem da atribuição (planilha, cotas, única) | **Auditoria** (evento *Verificação criada*) |
 | Nota do ADM ao reatribuir | **Auditoria** (evento *Reatribuída*) |
+| Quem reatribuiu e quando | Selo **REATRIBUÍDA · por X** e aviso para o técnico que recebeu (só enquanto a verificação não for concluída ou deixada pendente) e **Auditoria** |
 | Quem assumiu, retomou, designou ou redistribuiu | **Linha do tempo** da verificação |
 
 Exceção intencional: o campo **"Problema detectado / observações iniciais"** da *Atribuição Única* é texto escrito pelo ADM e vai para as observações.

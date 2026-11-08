@@ -53,7 +53,8 @@ pendentes, mais atrasadas, menor conclusão, nome A–Z). *Limpar filtros* volta
 A lista global de **todas** as verificações, com busca por PPPoE e filtros por conjunto, técnico, prioridade e status
 (atrasadas, aguardando início no prazo, pendentes de contato, em execução, concluídas). Aqui você pode:
 
-- **Reatribuir** a verificação a outro técnico, com **prazo individual**;
+- **Reatribuir** a verificação a outro técnico, com **prazo individual**. O técnico que recebe vê o selo **REATRIBUÍDA · por (seu nome)** e um aviso no atendimento; a sua nota de motivo continua só na auditoria;
+- **Reabrir** uma verificação concluída: o sistema pergunta **para qual técnico direcionar**. Ele sugere **outro técnico** (do mesmo turno e com menos verificações em aberto); escolher o mesmo que concluiu a anterior é permitido, mas aparece um aviso;
 - abrir o **Raio-X** (os detalhes da verificação) e, dali, a linha do tempo;
 - **excluir** com confirmação (a exclusão apaga a verificação e o histórico dela).
 

@@ -451,6 +451,11 @@ final class Sync
                         // dono e a nota antigos). Se o técnico deixa pendente de novo, a entrega antiga sai (vale a nota nova).
                         if ($resumingPending && $takeover) { $sets[] = 'handoff_note = pending_note'; $sets[] = 'handoff_from = tech_id'; $sets[] = 'handoff_at = NOW()'; }
                         elseif ($leavingPending) { $sets[] = 'handoff_note = NULL'; $sets[] = 'handoff_from = NULL'; $sets[] = 'handoff_at = NULL'; }
+                        // Tag "Reatribuída por X": o ADM passou a verificação a OUTRO técnico (só o ADM chega aqui com techEmail alterado e sem ser "assumir").
+                        // Sai quando ela troca de dono de outra forma (assumida), é deixada pendente ou é concluída.
+                        $reassignedNow = isset($changes['techEmail']) && !$takeover && !$t['finalizado'];
+                        if ($reassignedNow) { $sets[] = 'reassigned_by = ?'; $vals[] = $actor['id']; $sets[] = 'reassigned_at = NOW()'; }
+                        elseif (isset($changes['techEmail']) || $leavingPending || isset($changes['finalizado'])) { $sets[] = 'reassigned_by = NULL'; $sets[] = 'reassigned_at = NULL'; }
                         foreach (array_keys($changes) as $f) {
                             if ($f === 'techEmail') { $sets[] = 'tech_id = ?'; $vals[] = $tech['id']; }
                             elseif ($f === 'lote') { $sets[] = 'batch_id = ?'; $vals[] = $batchId($t['lote']); }

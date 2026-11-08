@@ -12,6 +12,7 @@ final class Mappers
       v.id, v.pppoe, v.shift, v.due_date, v.priority, v.kind, v.is_single, v.prev_count, v.repeat_of, v.obs, v.ligou, v.nao_atende,
       v.resolvido, v.os_criada, v.action_id, v.handle_time_min, v.em_execucao, v.pending_contact, v.pending_since, v.pending_note,
       v.handoff_note, v.handoff_at, v.redist_count, hu.name AS handoff_name,
+      v.reassigned_at, ru.name AS reassigned_name,
       v.finalizado, v.version, v.started_at, v.finished_at, v.created_at,
       (SELECT COUNT(*) FROM verifications o WHERE o.pppoe = v.pppoe AND o.id <> v.id
           AND (o.created_at < v.created_at OR (o.created_at = v.created_at AND o.id < v.id))) AS hist_prev,
@@ -21,7 +22,8 @@ final class Mappers
       FROM verifications v
       JOIN batches bt ON bt.id = v.batch_id
       JOIN users u ON u.id = v.tech_id
-      LEFT JOIN users hu ON hu.id = v.handoff_from';
+      LEFT JOIN users hu ON hu.id = v.handoff_from
+      LEFT JOIN users ru ON ru.id = v.reassigned_by';
 
     public static function verif(array $r): array
     {
@@ -42,6 +44,8 @@ final class Mappers
             'pendenteDesde' => $r['pending_since'] ?? null,
             // Passagem de bastão: o que o técnico anterior deixou como pendente (só vale enquanto a verificação não for concluída)
             'entregaNota' => $r['handoff_note'] ?? '', 'entregaDe' => $r['handoff_name'] ?? '', 'entregaEm' => $r['handoff_at'] ?? null,
+            // Reatribuição pelo ADM: quem reatribuiu e quando (só vale enquanto a verificação não for concluída)
+            'reatribuidaPor' => $r['reassigned_name'] ?? '', 'reatribuidaEm' => $r['reassigned_at'] ?? null,
             'trocas' => (int) ($r['redist_count'] ?? 0),
             'single' => (int) ($r['is_single'] ?? 0) === 1,
             'ligou' => (int) $r['ligou'] === 1, 'naoAtende' => (int) $r['nao_atende'] === 1,

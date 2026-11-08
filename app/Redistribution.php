@@ -287,7 +287,7 @@ final class Redistribution
             // Quem recebe começa com as observações em branco (o texto anterior vai para a auditoria); só não limpa se a pendência voltar para o mesmo técnico.
             $fresh = $p['tech_id'] !== $t['id'] && (string) ($p['obs'] ?? '') !== '';
             $n = Db::q('UPDATE verifications
-                           SET handoff_note = pending_note, handoff_from = tech_id, handoff_at = NOW(), pending_note = NULL,' . ($fresh ? ' obs = NULL,' : '') . '
+                           SET handoff_note = pending_note, handoff_from = tech_id, handoff_at = NOW(), pending_note = NULL, reassigned_by = NULL, reassigned_at = NULL,' . ($fresh ? ' obs = NULL,' : '') . '
                                tech_id = ?, pending_contact = 0, pending_since = NULL, em_execucao = 0, started_at = NULL,
                                redist_count = ' . ($manual ? '0' : 'redist_count + 1') . ', redist_at = NOW(), version = version + 1
                          WHERE id = ? AND pending_contact = 1 AND finalizado = 0 AND version = ?', [$t['id'], $p['id'], $p['version']])->rowCount();

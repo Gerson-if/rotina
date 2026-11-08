@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.8.15
+- **Tag "Reatribuída por X".** Quando o ADM passa uma verificação em aberto (inclusive uma que já estava em atendimento) para **outro técnico**, o técnico que recebe agora vê o selo **REATRIBUÍDA · por (nome do ADM)** no cartão, um aviso no cartão de *Aguardando início* e uma faixa na janela de atendimento e no detalhe, com há quanto tempo foi reatribuída. O selo sai quando a verificação é concluída, deixada pendente, assumida por outro técnico ou entregue pela Redistribuição. Reatribuir para o **mesmo** técnico não gera selo. A nota de motivo do ADM continua só na auditoria.
+- **Reabrir pelo ADM pergunta para quem direcionar.** Antes, a verificação reaberta ia sempre para o técnico que concluiu a anterior. Agora o ADM escolhe o técnico na hora; a tela **sugere outro técnico** (do mesmo turno e com menos verificações em aberto) e, se ele escolher o mesmo que concluiu a anterior, mostra um aviso (não bloqueia). Esc ou *Não, manter concluída* cancelam. O técnico que reabre a **própria** verificação segue como antes (vai para a sua fila, com confirmação).
+- **Banco de dados:** migration `017_reassign_tag.sql` (aditiva): colunas `reassigned_by` e `reassigned_at`. A API devolve `reatribuidaPor` e `reatribuidaEm` em cada verificação. Nenhuma regra do servidor para reabrir mudou (o ADM já podia criar a reaberta para qualquer técnico aprovado).
+- Documentação atualizada (`docs/02`, `03`, `04`, `05`), README e guia de operação.
+
 ## 1.8.14
 - **Retrabalho: o PPPoE reaberto aparece uma vez só, com o status no próprio PPPoE.** Antes, reabrir uma verificação fazia o PPPoE aparecer como outra linha nos **Conjuntos**, nas **Atribuições únicas** e no **Histórico Concluído**. Agora:
   - **Conjuntos e Atribuições únicas** (lista e detalhe do conjunto): uma linha por PPPoE, com o estado da verificação mais recente dele; totais, barra de progresso e filtros contam o PPPoE uma vez.
