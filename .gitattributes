@@ -1,0 +1,6 @@
+# Normaliza quebras de linha: o projeto roda em servidor Linux.
+* text=auto eol=lf
+*.sh text eol=lf
+rotina text eol=lf
+*.png binary
+*.ico binary
