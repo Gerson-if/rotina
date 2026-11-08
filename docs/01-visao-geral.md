@@ -37,6 +37,7 @@ O turno da pessoa é **Manhã, Tarde, Noite ou Madrugada** (escolhido no cadastr
 | **Prioridade** | Normal, Alta ou Urgente. Influencia a ordem de distribuição das pendências (urgente primeiro). |
 | **Turno** | Período de trabalho do técnico (e da verificação). |
 | **Classe** | **Normal**, **Adicional** (o PPPoE já teve verificação concluída antes) ou **Reaberta** (nova verificação gerada ao reabrir uma concluída). |
+| **Retrabalho** | Um PPPoE concluído que foi **reaberto**. Nas listas ele aparece **uma vez só**, com o selo *REABERTA* no próprio PPPoE; no banco, cada conclusão continua sendo uma verificação própria (a produtividade de cada técnico não muda). Veja `docs/04`, seção 3. |
 | **Procedimento** | O que foi feito no atendimento (ex.: "Troca de equipamento"). A lista é definida pelo ADM. |
 | **Checklist** | Quatro marcações do atendimento: *Ligou*, *Não atende*, *Resolvido*, *O.S. aberta*. |
 | **Observações** | Texto livre **escrito pelo técnico** sobre o que ele fez. Só o técnico escreve ali. |

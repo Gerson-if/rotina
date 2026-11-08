@@ -15,6 +15,8 @@ final class Mappers
       v.finalizado, v.version, v.started_at, v.finished_at, v.created_at,
       (SELECT COUNT(*) FROM verifications o WHERE o.pppoe = v.pppoe AND o.id <> v.id
           AND (o.created_at < v.created_at OR (o.created_at = v.created_at AND o.id < v.id))) AS hist_prev,
+      v.root_id,
+      (SELECT COUNT(*) FROM verifications rw WHERE rw.root_id = COALESCE(v.root_id, v.id)) AS reopens,
       bt.name AS batch_name, u.email AS tech_email
       FROM verifications v
       JOIN batches bt ON bt.id = v.batch_id
@@ -30,6 +32,10 @@ final class Mappers
             // assim PPPoE verificados antes da v1.3 ou lançados de novo nunca aparecem como "primeira" por engano.
             'prevCount' => $prev = max((int) ($r['prev_count'] ?? 0), (int) ($r['hist_prev'] ?? 0)),
             'kind' => ($r['kind'] ?? '') === 'REABERTA' ? 'REABERTA' : ($prev > 0 ? 'ADICIONAL' : ($r['kind'] ?? 'NORMAL')), 'repeatOf' => $r['repeat_of'] ?? null,
+            // Retrabalho: 'reopens' = quantas vezes este PPPoE foi reaberto (vale para a original e para todas as reabertas da cadeia);
+            // 'chain' = id da primeira verificação da cadeia (a original), ou null se nunca houve reabertura. A tela usa 'chain' para
+            // tratar original + reabertas como UM PPPoE; as linhas continuam todas separadas no banco (a produtividade não muda).
+            'reopens' => $rw = (int) ($r['reopens'] ?? 0), 'chain' => $rw > 0 ? ($r['root_id'] ?? $r['id']) : null,
             'obs' => $r['obs'] ?? '',
             'pendente' => (int) ($r['pending_contact'] ?? 0) === 1,
             'pendenteNota' => $r['pending_note'] ?? '',

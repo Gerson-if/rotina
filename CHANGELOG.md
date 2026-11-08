@@ -1,5 +1,16 @@
 # Histórico de versões
 
+## 1.8.14
+- **Retrabalho: o PPPoE reaberto aparece uma vez só, com o status no próprio PPPoE.** Antes, reabrir uma verificação fazia o PPPoE aparecer como outra linha nos **Conjuntos**, nas **Atribuições únicas** e no **Histórico Concluído**. Agora:
+  - **Conjuntos e Atribuições únicas** (lista e detalhe do conjunto): uma linha por PPPoE, com o estado da verificação mais recente dele; totais, barra de progresso e filtros contam o PPPoE uma vez.
+  - **Histórico Concluído:** o PPPoE reaberto **não some mais da lista**; fica com o selo **REABERTA · EM ANDAMENTO** (e o botão vira *Em andamento*) até a reabertura terminar. O contador informa quantas reaberturas estão em andamento.
+  - **Selo REABERTA com contagem:** `REABERTA`, `REABERTA 2×`, `3×`... conforme o PPPoE volta; `· EM ANDAMENTO` enquanto há reabertura aberta.
+  - **Não mudou (de propósito):** cada reabertura continua sendo uma verificação própria no banco e a original continua concluída e intacta. **A produtividade de cada técnico não muda**: a 1ª conclusão continua sendo de quem a fez. O **Banco de Verificações** continua com uma linha por verificação; as filas do técnico, a auditoria e as regras de reabrir (uma aberta por PPPoE, confirmação antes de reabrir) são as mesmas.
+- **Indicador de retrabalho (um só):** cartão **Retrabalho** no Analytics do ADM (reaberturas de verificações concluídas no período) e coluna **Reabertas** na tabela de técnicos (conta no dono da verificação reaberta). A API também devolve `totals.rework` para o técnico (as reaberturas das próprias verificações). Os CSV (do ADM e do detalhe do conjunto) ganharam a coluna de reaberturas do PPPoE.
+- **Banco de dados:** migration `016_rework_chain.sql` (aditiva): coluna `root_id` (a primeira verificação da cadeia de reaberturas) com índice, preenchida só nas reabertas, inclusive nas já existentes. A original **não** é alterada. A API passa a devolver `reopens` e `chain` em cada verificação.
+- **Documentação:** `docs/04` (seção 3, *Retrabalho: um PPPoE, várias verificações*) e `docs/05` (seção *Retrabalho: cadeia de reaberturas*, com o modelo, consultas SQL e as regras para futuras atualizações); guias do técnico e do ADM e glossário atualizados.
+- Teste de integração novo (`tests/api.test.js`): cadeia de reaberturas, original intacta, indicador de retrabalho e coluna do CSV.
+
 ## 1.8.13
 - **Aviso antes de reabrir uma verificação.** Ao clicar em **Reabrir** (na lista do Histórico Concluído ou dentro do detalhe da verificação), o sistema agora pergunta antes: mostra o PPPoE, explica que será criada uma **nova verificação (REABERTA)**, para a fila de quem ela vai (a sua, ou a do técnico dono, quando é o ADM) e que a atual continua concluída, com o resultado preservado. Só reabre em **Sim, reabrir**; **Não, manter concluída** (ou Esc) cancela e, no detalhe, a janela continua aberta. Se o PPPoE já tiver outra verificação em aberto, o aviso de bloqueio de sempre aparece direto, sem perguntar. Só front-end; sem migration.
 

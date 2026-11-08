@@ -109,6 +109,11 @@ verificação sua: o sistema cria uma **nova** verificação de classe *Reaberta
 intacta, com o resultado que tinha). Só é possível reabrir verificações **suas**. Antes de reabrir, o sistema **pede confirmação**
 (para evitar reabrir sem querer): só vale depois de clicar em *Sim, reabrir*.
 
+O PPPoE reaberto **continua na lista do Histórico**, com o selo **REABERTA · EM ANDAMENTO** (e o botão *Reabrir* vira *Em andamento*) até
+a nova verificação ser concluída; ele não desaparece nem aparece duas vezes. A conclusão que você já tinha feito **continua sendo sua**
+e contando na sua produtividade; a nova conclusão conta para quem a fizer. Se o mesmo PPPoE voltar mais vezes, o selo mostra
+`REABERTA 2×`, `3×`...
+
 ## 9. Equipe e Meu Dashboard
 
 - **Equipe:** mostra quem está **online** e quem está **atendendo** agora, e permite abrir o perfil dos colegas. Uma pessoa

@@ -23,7 +23,8 @@ A visão geral da operação, com um seletor de período **Semana / Mês / Ano**
 | **Tempo médio de atendimento** | Média entre *Iniciar* e *Concluir*. Atendimentos com mais de 8 h (esquecidos abertos) não entram na média |
 | **Em aberto por tempo de atraso** | Verificações não concluídas em faixas: *a vencer*, *vence hoje*, *atrasada hoje*, *1 dia*, *2–3 dias*, *4–7 dias* e *mais de 7 dias de atraso* |
 | **Carga por turno** | Quanto trabalho em aberto cada turno tem |
-| **Desempenho por técnico** | Produção por pessoa no período |
+| **Desempenho por técnico** | Produção por pessoa no período, com a coluna **Reabertas** (verificações concluídas por aquele técnico que voltaram para a fila no período) |
+| **Retrabalho** (cartão) | Quantas verificações concluídas foram **reabertas** no período. Não altera nenhum outro número: as conclusões continuam contando para quem as fez |
 
 ---
 
@@ -37,6 +38,11 @@ Duas listas do que foi atribuído e do andamento de cada conjunto:
 Os números ao lado de **Conjuntos** e **Atribuições únicas** no menu contam **só o que ainda tem verificação em aberto**: um conjunto
 100% concluído (ou uma atribuição única concluída) deixa de contar e, quando não resta nada em aberto, o número some. Assim ele não
 cresce para sempre. Os concluídos continuam na lista, com o filtro *Concluídas*.
+
+**PPPoE reaberto (retrabalho):** nos Conjuntos e nas Atribuições únicas ele aparece **uma vez só**, com o selo **REABERTA** (e `2×`, `3×`...
+nas reaberturas seguintes) e o estado da verificação mais recente; os totais e a barra de progresso contam o PPPoE uma vez. A verificação
+original continua concluída e preservada (veja o resultado antigo em *Auditoria → Outras verificações deste PPPoE*). No **Banco de Verificações**
+cada verificação segue em linha própria, e o filtro *Reabertas* mostra só as reaberturas.
 
 Use a **busca** (conjunto, login PPPoE ou técnico) e os filtros: **situação** (**em aberto** = não concluídas, não iniciadas,
 **pendentes de contato**, em execução, concluídas, atrasadas), **turno**, **prioridade**, **datas** (De/Até) e **ordenação** (mais recentes, mais

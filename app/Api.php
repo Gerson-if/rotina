@@ -602,6 +602,16 @@ final class Api
             if ($r['a'] !== 'NONE') $procs[] = ['id' => $r['a'], 'n' => (int) $r['n']];
         }
 
+        // Retrabalho = quantas verificações CONCLUÍDAS foram reabertas no período (linhas REABERTA criadas desde $from).
+        // Não mexe em nenhum outro número: as conclusões originais e as novas continuam contando normalmente na produtividade.
+        // Por técnico, conta no dono da verificação que foi reaberta (a original), para mostrar quem teve o trabalho devolvido.
+        $rwBase = "FROM verifications v LEFT JOIN verifications o ON o.id = v.repeat_of WHERE v.kind = 'REABERTA' AND v.created_at >= ?";
+        $rework = (int) Db::val("SELECT COUNT(*) $rwBase" . ($isAdm ? '' : ' AND o.tech_id = ?'), $isAdm ? [$from] : [$from, $me['id']]);
+        $reworkBy = [];
+        if ($isAdm) {
+            foreach (Db::all("SELECT o.tech_id AS tid, COUNT(*) AS n $rwBase GROUP BY o.tech_id", [$from]) as $r) $reworkBy[(string) $r['tid']] = (int) $r['n'];
+        }
+
         $techs = []; $shifts = []; $assignedTotal = 0;
         if ($isAdm) {
             foreach (Db::all("SELECT u.id, u.name, $agg FROM verifications v JOIN users u ON u.id = v.tech_id
@@ -609,7 +619,8 @@ final class Api
                 $n = (int) $r['n'];
                 $techs[] = ['id' => $r['id'], 'name' => $r['name'], 'finished' => $n, 'resolved' => (int) $r['res'], 'os' => (int) $r['os'],
                             'other' => max(0, $n - (int) $r['res'] - (int) $r['os']), 'onTime' => (int) $r['ontime'],
-                            'tmaSec' => $r['tma'] === null ? null : (int) round((float) $r['tma']), 'tmaN' => (int) $r['tman']];
+                            'tmaSec' => $r['tma'] === null ? null : (int) round((float) $r['tma']), 'tmaN' => (int) $r['tman'],
+                            'rework' => $reworkBy[(string) $r['id']] ?? 0];
             }
             $sh = [];
             foreach (Db::all('SELECT v.shift AS s, COUNT(*) AS n FROM verifications v WHERE v.due_date >= ? AND v.due_date <= ? GROUP BY v.shift', [$from, $today]) as $r) $sh[$r['s']]['assigned'] = (int) $r['n'];
@@ -628,7 +639,7 @@ final class Api
                 'finished' => $tot['finished'], 'resolved' => $tot['resolved'], 'os' => $tot['os'],
                 'other' => max(0, $tot['finished'] - $tot['resolved'] - $tot['os']), 'onTime' => $tot['onTime'],
                 'tmaSec' => $tot['tmaN'] ? (int) round($tot['tmaSum'] / $tot['tmaN']) : null, 'tmaN' => $tot['tmaN'],
-                'assigned' => $assignedTotal,
+                'assigned' => $assignedTotal, 'rework' => $rework,
             ],
         ]);
     }
@@ -790,11 +801,11 @@ final class Api
         };
         $yn = static fn($b) => $b ? 'Sim' : 'Não';
         $lines = [implode(';', array_map($esc, ['PPPoE', 'Conjunto', 'Técnico', 'Turno', 'Prazo', 'Prioridade', 'Ligou', 'Não atende',
-            'Resolvido', 'OS criada', 'Procedimento', 'Finalizado', 'Classe', 'Verificações anteriores', 'Observações']))];
+            'Resolvido', 'OS criada', 'Procedimento', 'Finalizado', 'Classe', 'Verificações anteriores', 'Reaberturas do PPPoE', 'Observações']))];
         foreach ($rows as $row) {
             $r = Mappers::verif($row);
             $lines[] = implode(';', array_map($esc, [$r['pppoe'], $r['lote'], $r['techEmail'], $r['shift'], $r['date'], $r['priority'],
-                $yn($r['ligou']), $yn($r['naoAtende']), $yn($r['resolvido']), $yn($r['osCriada']), $r['actionId'], $yn($r['finalizado']), $r['kind'] === 'REABERTA' ? 'Reaberta' : ($r['kind'] === 'ADICIONAL' ? 'Adicional' : 'Normal'), $r['prevCount'], $r['obs']]));
+                $yn($r['ligou']), $yn($r['naoAtende']), $yn($r['resolvido']), $yn($r['osCriada']), $r['actionId'], $yn($r['finalizado']), $r['kind'] === 'REABERTA' ? 'Reaberta' : ($r['kind'] === 'ADICIONAL' ? 'Adicional' : 'Normal'), $r['prevCount'], $r['reopens'], $r['obs']]));
         }
         header('Content-Type: text/csv; charset=utf-8');
         header("Content-Disposition: attachment; filename=\"verificacoes_{$from}_{$to}.csv\"");

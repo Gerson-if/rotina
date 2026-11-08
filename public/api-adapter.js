@@ -150,7 +150,7 @@
           obj.version = row.version; obj.startedAt = row.startedAt;
           obj.finishedAt = row.finishedAt; obj.createdAt = row.createdAt;
           // a classe (NORMAL/ADICIONAL) é decidida pelo servidor
-          obj.kind = row.kind; obj.prevCount = row.prevCount; obj.repeatOf = row.repeatOf; obj.single = !!row.single; obj.pendente = !!row.pendente; obj.pendenteNota = row.pendenteNota || ''; obj.pendenteDesde = row.pendenteDesde || null;
+          obj.kind = row.kind; obj.prevCount = row.prevCount; obj.repeatOf = row.repeatOf; obj.reopens = row.reopens || 0; obj.chain = row.chain || null; obj.single = !!row.single; obj.pendente = !!row.pendente; obj.pendenteNota = row.pendenteNota || ''; obj.pendenteDesde = row.pendenteDesde || null;
         }
       }
       try { if (window.anInvalidate) window.anInvalidate(); } catch (_) {}   // você mudou algo: os gráficos precisam refletir

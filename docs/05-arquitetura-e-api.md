@@ -80,7 +80,7 @@ Princípios: **sem framework**, `declare(strict_types=1)`, SQL com parâmetros, 
 |---|---|
 | Identidade | `id`, `pppoe`, `batch_id`, `created_by`, `created_at`, `updated_at` |
 | Atribuição | `tech_id`, `shift`, `due_date`, `priority`, `is_single` |
-| Classe e histórico | `kind` (Normal/Adicional/Reaberta), `prev_count` (quantas verificações anteriores do PPPoE), `repeat_of` (a anterior) |
+| Classe e histórico | `kind` (Normal/Adicional/Reaberta), `prev_count` (quantas verificações anteriores do PPPoE), `repeat_of` (a anterior), `root_id` (a primeira da cadeia de reaberturas; só nas Reabertas) |
 | Atendimento | `ligou`, `nao_atende`, `resolvido`, `os_criada`, `action_id`, `obs`, `em_execucao`, `started_at`, `finished_at`, `finalizado`, `handle_time_min` |
 | Pendência | `pending_contact`, `pending_since`, `pending_note` |
 | Passagem de bastão | `handoff_note`, `handoff_from`, `handoff_at` |
@@ -88,6 +88,81 @@ Princípios: **sem framework**, `declare(strict_types=1)`, SQL com parâmetros, 
 | Controle | `version` (concorrência otimista), `active_pppoe` (coluna que garante **uma verificação aberta por PPPoE**) |
 
 `active_pppoe` tem índice **único**: o banco impede duas verificações abertas do mesmo PPPoE, independentemente da tela.
+
+### Retrabalho: cadeia de reaberturas (`root_id`)
+
+Introduzido na **versão 1.8.14** (migration `016_rework_chain.sql`). Leia isto antes de mexer em reabertura, produtividade ou nas listas.
+
+**O modelo (não mudou):** reabrir uma verificação concluída **insere uma linha nova** em `verifications` com `kind = 'REABERTA'` e
+`repeat_of = <id da verificação que foi reaberta>`. A linha original **não é alterada**: continua `finalizado = 1`, com o mesmo `tech_id`, `finished_at`,
+resultado e `version`. É por isso que a produtividade (todas as consultas por `finalizado = 1` e `finished_at`) continua certa:
+cada conclusão é uma linha, e cada linha conta para quem a concluiu.
+
+**O que a 016 acrescentou:** uma única coluna, `root_id VARCHAR(40) NULL`, com índice `ix_verif_root`.
+
+| Linha | `repeat_of` | `root_id` |
+|---|---|---|
+| Original (Normal/Adicional), reaberta ou não | o que já tinha | **sempre `NULL`** (não é alterada) |
+| 1ª reaberta | id da original | id da **original** |
+| 2ª reaberta (reabriu a 1ª) | id da 1ª reaberta | id da **original** (herda a raiz) |
+| 3ª, 4ª... | id da anterior | id da **original** |
+
+A **raiz da cadeia** de qualquer linha é `COALESCE(root_id, id)`. Toda a cadeia (original + reabertas) compartilha a mesma raiz.
+**Quantas vezes o PPPoE foi reaberto** = `COUNT(*)` das linhas com `root_id = <raiz>`. Sem chave estrangeira, de propósito: excluir um
+conjunto ou verificação não pode ser travado pelo histórico.
+
+**Quem grava:** só o `sync`, na criação de uma verificação com `reopenOf` (`app/Sync.php`). Ele valida (a anterior precisa estar
+concluída e ser do mesmo PPPoE; técnico só reabre as próprias), calcula a raiz e grava `root_id` na **nova** linha. Nenhuma outra
+parte do sistema escreve `root_id`.
+
+**Como chega na tela** (`app/Mappers.php`, usado por `bootstrap`, `sync` e pelo CSV): duas colunas calculadas no `SELECT`
+(`VERIF_SELECT`) viram dois campos de cada verificação:
+
+| Campo da API | Significado |
+|---|---|
+| `reopens` | Quantas vezes o PPPoE foi reaberto: `COUNT(*) WHERE root_id = COALESCE(v.root_id, v.id)`. É o mesmo número para a original e para todas as reabertas da cadeia. `0` = nunca reaberto. |
+| `chain` | Raiz da cadeia (id da original), ou `null` quando `reopens = 0`. A tela agrupa por `chain`. |
+
+O adaptador (`public/api-adapter.js`) copia `reopens` e `chain` de volta para a tela depois de cada `sync`. Esses campos **não** fazem
+parte do que a tela envia (`pickTask`): são só de leitura, decididos pelo servidor.
+
+**O que a tela faz com isso** (`public/index.html`, bloco *Retrabalho*): `rwCollapse()` junta a cadeia numa linha só, **dentro da mesma
+lista** (chave = conjunto/atribuição única + `chain`), mantendo a verificação **mais recente**. `rwOpen()` diz se há reabertura em
+andamento (toda verificação em aberto está sempre carregada na tela, então basta olhar `state.tasks`). `kindBadge()` desenha o selo.
+Ao reabrir, a tela já marca a cadeia na hora (`reopenAsNew`) e o servidor confirma. Só **exibição**: nada aqui altera o banco.
+
+**Indicador de retrabalho** (`analytics`): `totals.rework` = reaberturas criadas no período
+(`kind = 'REABERTA' AND created_at >= início`); `techs[].rework` agrupa por `tech_id` da verificação reaberta (a que `repeat_of`
+aponta). Para o técnico, `totals.rework` só conta as reaberturas de verificações dele.
+
+**Consultas úteis:**
+
+```sql
+-- PPPoE com mais reaberturas
+SELECT COALESCE(root_id, id) AS raiz, pppoe, COUNT(*) AS reaberturas
+  FROM verifications WHERE kind = 'REABERTA' GROUP BY COALESCE(root_id, id), pppoe ORDER BY reaberturas DESC;
+
+-- Retrabalho por técnico (dono da verificação que foi reaberta), nos últimos 30 dias
+SELECT u.name, COUNT(*) AS reabertas
+  FROM verifications r JOIN verifications o ON o.id = r.repeat_of JOIN users u ON u.id = o.tech_id
+ WHERE r.kind = 'REABERTA' AND r.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) GROUP BY u.id, u.name ORDER BY reabertas DESC;
+
+-- Todas as verificações de uma cadeia (a original tem id = raiz)
+SELECT id, kind, tech_id, finalizado, finished_at FROM verifications WHERE id = :raiz OR root_id = :raiz ORDER BY created_at, id;
+```
+
+**O que a migration 016 fez nos dados existentes:** preencheu `root_id` das reabertas que já existiam (8 passadas, uma por nível da
+cadeia; cobre até 8 reaberturas seguidas) e não alterou mais nada. Reaberturas antigas aparecem agrupadas na tela sem nenhum outro ajuste.
+
+**Regras para futuras atualizações (não quebre):**
+
+1. **Nunca edite a original ao reabrir** (nem `root_id`, nem `version`, nem `finished_at`): a produtividade e a auditoria dependem de ela ficar intacta.
+2. **Produtividade continua por linha.** Não troque `COUNT(*)` por `COUNT(DISTINCT pppoe)` nas consultas de produtividade, ranking, TMA ou dashboards: isso apagaria o trabalho do técnico da 1ª conclusão. Se um dia quiser "PPPoEs únicos", crie um indicador **separado**.
+3. **Agrupar é só exibição.** Se criar uma lista nova, decida se ela mostra *verificações* (não agrupa, como o Banco de Verificações) ou *PPPoEs* (use `rwCollapse`). Não apague linhas para "evitar duplicidade": a duplicidade de **abertas** já é impedida por `active_pppoe`.
+4. **`chain`/`reopens` são só de leitura** no front. Não os envie no `sync` nem os grave a partir da tela.
+5. Se mudar o formato de `id` das verificações, reveja o `VARCHAR(40)` de `root_id` e de `repeat_of`.
+6. Se uma verificação-raiz for **excluída**, as reabertas continuam com o mesmo `root_id` (órfão) e continuam agrupadas entre si; o número de reaberturas diminui apenas pelas linhas excluídas. Não é preciso corrigir nada.
+7. Migrations já aplicadas não podem ser editadas (o checksum aborta): mudanças neste modelo entram em uma **nova** migration (`017_...`).
 
 ### Migrations (`migrations/`)
 
@@ -110,6 +185,7 @@ São **sempre aditivas** e aplicadas em ordem; o checksum impede alterar uma já
 | 013 | Redistribuição: `redist_count`, `redist_at` |
 | 014 | Índices para grande volume (gráficos, sincronização, redistribuição) |
 | 015 | Passagem de bastão (`handoff_*`) |
+| 016 | Retrabalho: `root_id` (cadeia de reaberturas) + preenchimento das reaberturas antigas |
 
 ## 5. API
 
@@ -123,7 +199,7 @@ Métodos que alteram dados exigem **POST** e o cabeçalho anti-CSRF; a sessão v
 | `bootstrap` | GET | logado | Carga inicial da tela (usuários, verificações, procedimentos); dispara as rotinas depois de responder |
 | `stamp` | GET | logado | Carimbo de mudança (polling leve); também aciona a redistribuição, depois de responder |
 | `sync` | POST | logado | Grava alterações (criar, editar, excluir) com validação, permissões e versão |
-| `analytics` | GET | logado | Séries dos gráficos por período (semana/mês/ano) |
+| `analytics` | GET | logado | Séries dos gráficos por período (semana/mês/ano). Inclui o indicador de retrabalho: `totals.rework` e, para o ADM, `techs[].rework` |
 | `team` | GET | logado | Presença e situação da equipe (também registra o batimento) |
 | `profile`, `profile/verifications` | GET | logado | Perfil de um técnico e suas verificações |
 | `profile/bio` · `profile/avatar` | POST | logado | Editar o próprio perfil |
@@ -133,7 +209,7 @@ Métodos que alteram dados exigem **POST** e o cabeçalho anti-CSRF; a sessão v
 | `pppoe/check` | POST | ADM | Histórico de uma lista de PPPoE antes de atribuir |
 | `pending/stats` | GET | ADM | Ranking *quem deixa / quem retoma* (`days`) |
 | `audit` | GET | ADM | Auditoria geral |
-| `export/verifications.csv` | GET | ADM | Exporta verificações (`from`, `to`; padrão últimos 30 dias). CSV com `;` e BOM para abrir no Excel; protegido contra injeção de fórmula. *Não há botão na tela: acesse pela URL* |
+| `export/verifications.csv` | GET | ADM | Exporta verificações (`from`, `to`; padrão últimos 30 dias). CSV com `;` e BOM para abrir no Excel; protegido contra injeção de fórmula. A coluna *Reaberturas do PPPoE* traz `reopens`. *Não há botão na tela: acesse pela URL* |
 | `branding/login` · `branding/login-file` | GET | público | Plano de fundo da tela de login |
 | `admin/system` | GET | ADM | Estado do sistema (versão, banco, backups, manutenção) |
 | `admin/redistribution` | GET/POST | ADM | Lê / salva a configuração (e o estado) da Redistribuição |

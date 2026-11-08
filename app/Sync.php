@@ -368,7 +368,7 @@ final class Sync
                             // NOVA verificação de classe REABERTA. A anterior não é alterada (resultado preservado).
                             $reopen = null;
                             if ($t['reopenOf'] !== null) {
-                                $old = Db::one('SELECT id, pppoe, tech_id, finalizado, is_single FROM verifications WHERE id = ?', [$t['reopenOf']]);
+                                $old = Db::one('SELECT id, pppoe, tech_id, finalizado, is_single, kind, root_id FROM verifications WHERE id = ?', [$t['reopenOf']]);
                                 if (!$old || (int) $old['finalizado'] !== 1 || Util::lower($old['pppoe']) !== Util::lower($t['pppoe'])) {
                                     throw new HttpError(400, 'Só é possível reabrir uma verificação concluída do mesmo PPPoE.', 'VALIDATION');
                                 }
@@ -376,6 +376,10 @@ final class Sync
                                     throw new HttpError(403, 'Você só pode reabrir as suas próprias verificações.', 'FORBIDDEN');
                                 }
                                 $reopen = $old;
+                                // Retrabalho: a cadeia de reaberturas é identificada pela PRIMEIRA verificação (a original). Se a que está sendo
+                                // reaberta já é uma REABERTA, herda a raiz dela; senão, a raiz é a própria verificação reaberta.
+                                // A original não é alterada (nem a versão dela): só a nova linha grava root_id.
+                                $reopen['root'] = ($old['kind'] === 'REABERTA' && $old['root_id'] !== null) ? $old['root_id'] : $old['id'];
                             }
                             if (!$isAdm && !$reopen) throw new HttpError(403, 'Apenas administradores criam verificações.', 'FORBIDDEN');
                             $pr = $prior[Util::lower($t['pppoe'])] ?? null;
@@ -383,6 +387,7 @@ final class Sync
                             $toInsert[] = [
                                 $t['id'], $t['pppoe'], $batchId($t['lote']), $tech['id'], $t['shift'], $t['date'], $t['priority'],
                                 $kind, $reopen ? (int) $reopen['is_single'] : (int) $t['single'], $pr ? min($pr['n'], 65000) : 0, $reopen ? $reopen['id'] : ($pr ? $pr['last'] : null),
+                                $reopen ? $reopen['root'] : null,
                                 $t['obs'] === '' ? null : $t['obs'], (int) $t['ligou'], (int) $t['naoAtende'], (int) $t['resolvido'],
                                 (int) $t['osCriada'], $t['actionId'], $t['handleTimeMin'], (int) $t['emExecucao'], (int) $t['finalizado'], $actor['id'],
                             ];
@@ -498,9 +503,9 @@ final class Sync
 
                     // inserção em lote (muito mais rápido que 1 a 1)
                     foreach (array_chunk($toInsert, 500) as $part) {
-                        $row = '(' . implode(',', array_fill(0, 21, '?')) . ')';
+                        $row = '(' . implode(',', array_fill(0, 22, '?')) . ')';
                         Db::q('INSERT INTO verifications
-                               (id, pppoe, batch_id, tech_id, shift, due_date, priority, kind, is_single, prev_count, repeat_of, obs, ligou, nao_atende,
+                               (id, pppoe, batch_id, tech_id, shift, due_date, priority, kind, is_single, prev_count, repeat_of, root_id, obs, ligou, nao_atende,
                                 resolvido, os_criada, action_id, handle_time_min, em_execucao, finalizado, created_by)
                                VALUES ' . implode(',', array_fill(0, count($part), $row)), array_merge(...$part));
                         foreach ($part as $r) $touchedTasks[$r[0]] = true;

@@ -555,3 +555,67 @@ test('admin: exclusão definitiva de usuário (transfere as abertas e preserva o
   assert.equal((await adm.req('POST', '/api/admin/users/delete', { id: I4, confirmEmail: E4 })).status, 200);
   await tec1.req('POST', '/api/auth/logout');
 });
+
+test('retrabalho: reabrir cria verificação nova, a original fica intacta e a cadeia (chain/reopens) é a mesma para todas', async () => {
+  const login = `retrabalho.${RUN}@telecom`, lote = 'Lote Retrabalho ' + RUN;
+  const conclui = async (t) => {      // atendimento completo até concluir (devolve a verificação concluída)
+    let x = (await tec1.sync({ tasks: { upsert: [{ ...t, emExecucao: true }] } })).body.tasks[0];
+    x = (await tec1.sync({ tasks: { upsert: [{ ...x, obs: 'Troquei o canal do Wi-Fi', actionId: 'TROCA_EQUIPAMENTO' }] } })).body.tasks[0];
+    const r = await tec1.sync({ tasks: { upsert: [{ ...x, finalizado: true, emExecucao: false, resolvido: true }] } });
+    assert.equal(r.status, 200);
+    return r.body.tasks[0];
+  };
+
+  // 1) PPPoE comum: ainda não é retrabalho (chain nulo, reopens 0)
+  const created = (await adm.sync({ tasks: { upsert: [mkTask({ n: 95, tech: T1, pppoe: login, lote })] } })).body.tasks[0];
+  assert.equal(created.reopens, 0);
+  assert.equal(created.chain, null);
+  const O = await conclui(created);
+
+  // 2) 1ª reabertura: nasce uma verificação NOVA (REABERTA); a original não muda (nem a versão)
+  const r1 = await tec1.sync({ tasks: { upsert: [{ ...mkTask({ n: 96, tech: T1, pppoe: login, lote }), reopenOf: O.id }] } });
+  assert.equal(r1.status, 200);
+  const R1 = r1.body.tasks[0];
+  assert.equal(R1.kind, 'REABERTA');
+  assert.equal(R1.repeatOf, O.id);
+  assert.equal(R1.chain, O.id);             // a raiz da cadeia é a original
+  assert.equal(R1.reopens, 1);
+  let b = (await adm.boot()).body;
+  const O1 = b.tasks.find(x => x.id === O.id);
+  assert.equal(O1.finalizado, true);
+  assert.equal(O1.version, O.version);       // original intacta: não é editada ao ser reaberta
+  assert.equal(O1.finishedAt, O.finishedAt); // a 1ª conclusão (e a produtividade dela) continua valendo
+  assert.equal(O1.chain, O.id);              // mas a tela já sabe que este PPPoE foi reaberto
+  assert.equal(O1.reopens, 1);
+
+  // 3) 2ª reabertura (de uma reaberta): herda a MESMA raiz; todas passam a contar 2 reaberturas
+  const R1done = await conclui(R1);
+  const r2 = await tec1.sync({ tasks: { upsert: [{ ...mkTask({ n: 97, tech: T1, pppoe: login, lote }), reopenOf: R1done.id }] } });
+  assert.equal(r2.status, 200);
+  const R2 = r2.body.tasks[0];
+  assert.equal(R2.chain, O.id);
+  assert.equal(R2.reopens, 2);
+  b = (await adm.boot()).body;
+  for (const id of [O.id, R1.id, R2.id]) {
+    const x = b.tasks.find(y => y.id === id);
+    assert.equal(x.chain, O.id);
+    assert.equal(x.reopens, 2);
+  }
+
+  // 4) indicador de retrabalho: ADM vê o total; o técnico vê as reaberturas das SUAS verificações
+  const a = await adm.req('GET', '/api/analytics?range=WEEK');
+  assert.ok(a.body.totals.rework >= 2);
+  assert.ok(a.body.techs.every(t => Number.isInteger(t.rework)));
+  const mine = await tec1.req('GET', '/api/analytics?range=WEEK');
+  assert.ok(mine.body.totals.rework >= 2);
+  // a produtividade NÃO mudou: as duas conclusões (original e 1ª reaberta) estão contadas, cada uma no seu dia
+  assert.ok(a.body.totals.finished >= 2);
+
+  // 5) CSV do ADM traz a coluna de reaberturas
+  const csv = await adm.req('GET', `/api/export/verifications.csv?from=${today}&to=${today}`);
+  assert.equal(csv.status, 200);
+  assert.ok(csv.raw.toString('utf8').includes('Reaberturas do PPPoE'));
+
+  // limpeza
+  assert.equal((await adm.sync({ tasks: { delete: [R2.id, R1.id, O.id] } })).status, 200);
+});

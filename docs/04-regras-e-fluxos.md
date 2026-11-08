@@ -64,8 +64,41 @@ O servidor confere tudo isso; a tela apenas esconde o que a pessoa não pode usa
   *Não mexer nas que ainda estão em aberto*).
 - **Normal:** primeira verificação do PPPoE.
 - **Adicional:** o PPPoE **já teve** verificação concluída. A classe vem do **histórico real** (quantas verificações anteriores existem), não só do que estava gravado.
-- **Reaberta:** nasce ao reabrir uma concluída. É uma verificação **nova**, ligada à anterior; a anterior permanece intacta, com o resultado que teve.
+- **Reaberta:** nasce ao reabrir uma concluída. É uma verificação **nova**, ligada à anterior; a anterior permanece intacta, com o resultado que teve. É o que o sistema chama de **retrabalho** (veja a subseção abaixo).
 - **Cada verificação é independente**: o contador de trocas (seção 6) **recomeça em 0** na reaberta ou na adicional. O contador da anterior fica guardado nela.
+
+### Retrabalho: um PPPoE, várias verificações
+
+**Princípio:** no **banco**, cada reabertura é uma verificação própria; na **tela**, o PPPoE reaberto aparece **uma vez só**, com o status de retrabalho no próprio PPPoE.
+
+| | No banco de dados | Na tela |
+|---|---|---|
+| Original (concluída) | Continua como estava: mesmo técnico, mesma data de conclusão, mesmo resultado e tempo. **Não é editada** ao ser reaberta (nem a versão dela muda). | Some como linha separada quando a reaberta está na mesma lista; o status vai para o PPPoE. |
+| Reaberta | Uma **linha nova** (`kind = REABERTA`), ligada à anterior (`repeat_of`) e à primeira da cadeia (`root_id`). | É a linha que representa o PPPoE enquanto ele está em retrabalho. |
+| Produtividade | **Cada conclusão conta**, para o técnico que a fez, no dia em que foi feita. | Não muda. |
+| Auditoria | Cada verificação tem a sua linha do tempo (a 1ª, a 2ª, a 3ª...). | Não muda. |
+
+**Onde o PPPoE reaberto é agrupado (uma linha por PPPoE):**
+
+| Tela | Como aparece |
+|---|---|
+| **Conjuntos** (lista e detalhe do conjunto) | Uma linha por PPPoE, com o estado da verificação **mais recente** dele. Os totais e a barra de progresso contam o PPPoE **uma vez**. |
+| **Atribuições únicas** | Igual aos Conjuntos. |
+| **Histórico Concluído** (técnico) | O PPPoE reaberto **continua na lista**, com o selo **REABERTA · EM ANDAMENTO** e o botão *Reabrir* trocado por *Em andamento*. Quando a reabertura termina, a linha mostra a conclusão mais recente. O contador diz quantas reaberturas estão em andamento. |
+
+**Onde NÃO é agrupado (de propósito):**
+
+- **Banco de Verificações:** continua com **uma linha por verificação** (é o registro bruto). Nele o filtro *Reabertas* e a coluna *Classe* mostram cada reabertura.
+- **Minha Verificação, Pendentes de contato e Verificações dos outros técnicos:** a reaberta é trabalho real a fazer, então é um cartão normal (com a faixa *Reaberta*).
+- **Auditoria:** mostra a 1ª, a 2ª, a 3ª... verificação do PPPoE, como sempre.
+- Original e reaberta em **conjuntos diferentes** (ou uma em conjunto e outra em atribuição única) **não** são juntadas: o agrupamento só acontece dentro da mesma lista.
+
+**O selo:** `REABERTA` na primeira reabertura; `REABERTA 2×`, `3×`... quando o PPPoE já foi reaberto mais vezes; `· EM ANDAMENTO` enquanto existe uma reabertura aberta. Passar o mouse mostra a explicação.
+
+**Indicador de retrabalho (único):** *quantas verificações concluídas foram reabertas no período* (reaberturas **criadas** no período). Aparece no Analytics do ADM (cartão **Retrabalho** e coluna **Reabertas** na tabela de técnicos) e é devolvido também para o técnico, com as reaberturas das **suas** verificações. Por técnico, conta no dono da verificação que foi **reaberta** (quem teve o trabalho devolvido), não em quem reabriu. No CSV, a coluna **Reaberturas do PPPoE** diz quantas vezes aquele PPPoE foi reaberto.
+
+> Como isso se reflete no banco (colunas, consultas e o que precisa ser mantido em futuras atualizações) está em
+> [docs/05, seção *Retrabalho: cadeia de reaberturas*](05-arquitetura-e-api.md).
 
 ## 4. Observações: a regra de ouro
 
@@ -191,7 +224,8 @@ cair, o navegador guarda as alterações e **reenvia sozinho** ao voltar.
 
 | Indicador | Cálculo |
 |---|---|
-| **Concluídas** | Verificações com data de conclusão no período |
+| **Concluídas** | Verificações com data de conclusão no período. **Cada conclusão conta**, inclusive as de PPPoE reabertos (a original e a nova contam separadamente, para quem as fez) |
+| **Retrabalho** | Reaberturas **criadas** no período (verificações concluídas que voltaram para a fila). Por técnico, conta no dono da verificação reaberta |
 | **Resolvido direto** | Concluídas marcadas como *Resolvido* (sem O.S.) |
 | **O.S.** | Concluídas com *O.S. aberta* |
 | **Cumprimento do prazo** | Concluídas em que a **data da conclusão ≤ data do prazo** |

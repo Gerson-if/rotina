@@ -580,7 +580,7 @@
         </div>
 
         <!-- Indicadores do período (calculados no servidor: valem para semana, mês e ano completos) -->
-        <div id="adm-an-kpis" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        <div id="adm-an-kpis" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           <div class="skeleton h-24"></div><div class="skeleton h-24"></div><div class="skeleton h-24"></div><div class="skeleton h-24 hidden md:block"></div><div class="skeleton h-24 hidden md:block"></div>
         </div>
 
@@ -2667,11 +2667,39 @@
       return `<div class="h-9 shrink-0 ${extra || ''}" aria-hidden="true"></div>`;
     }
 
-    // Selo da classe: ADICIONAL = o PPPoE já tinha sido verificado antes
-    const kindBadge = (t) => (t && t.kind === 'REABERTA')
-      ? `<span class="inline-flex items-center gap-1 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-violet-500/15 text-violet-300 border border-violet-500/40" title="Reaberta: nova verificação gerada ao reabrir uma concluída"><i class="fa-solid fa-rotate-left"></i> REABERTA</span>`
-      : (t && t.kind === 'ADICIONAL')
-      ? `<span class="badge-add" title="Este PPPoE já foi verificado antes"><i class="fa-solid fa-clone"></i> ADICIONAL${t.prevCount ? ' · ' + (t.prevCount + 1) + 'ª' : ''}</span>` : '';
+    // ---- Retrabalho: um PPPoE reaberto continua sendo UM PPPoE na tela ----
+    // No banco, reabrir cria uma verificação nova (classe REABERTA) e a original continua concluída, intacta, contando na produtividade.
+    // Na tela, a original e as reabertas do mesmo PPPoE aparecem numa linha só, com o selo REABERTA (docs/04 seção 3 e docs/05).
+    // 'chain' (vem do servidor) é o id da primeira verificação da cadeia; 'reopens' é quantas vezes o PPPoE foi reaberto.
+    const rwCount = (t) => Math.max((t && t.reopens) || 0, (t && t.kind === 'REABERTA') ? 1 : 0);
+    // Há uma reabertura em andamento nesta cadeia? Toda verificação em aberto está sempre carregada, então basta olhar o que está na tela.
+    const rwOpen = (t) => !!(t && t.chain) && state.tasks.some(x => x.chain === t.chain && !x.finalizado);
+    const rwNewer = (a, b) => { const c = createdKey(a).localeCompare(createdKey(b)); return c !== 0 ? c > 0 : String(a.id) > String(b.id); };
+    // Junta a cadeia numa linha só: fica a verificação mais recente de cada PPPoE reaberto, dentro da mesma lista
+    // (mesmo conjunto, ou a mesma atribuição única). Só afeta o que é mostrado: nada é apagado nem alterado no banco.
+    function rwCollapse(list) {
+      const keep = new Map();
+      const keyOf = (t) => (t.single ? 'S|' : 'L|') + (t.lote || '') + '|' + t.chain;
+      for (const t of list) {
+        if (!t.chain) continue;
+        const k = keyOf(t), cur = keep.get(k);
+        if (!cur || rwNewer(t, cur)) keep.set(k, t);
+      }
+      return list.filter(t => !t.chain || keep.get(keyOf(t)) === t);
+    }
+
+    // Selo da classe: REABERTA (retrabalho) e ADICIONAL (o PPPoE já tinha sido verificado antes)
+    const kindBadge = (t) => {
+      if (!t) return '';
+      const n = rwCount(t);
+      let out = '';
+      if (n > 0) {
+        const run = !!t.finalizado && rwOpen(t);
+        out += `<span class="inline-flex items-center gap-1 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-violet-500/15 text-violet-300 border border-violet-500/40" title="Retrabalho: este PPPoE já foi reaberto ${n}×${run ? ' e há uma reabertura em andamento' : ''}. Cada conclusão continua registrada na auditoria."><i class="fa-solid fa-rotate-left"></i> REABERTA${n > 1 ? ' ' + n + '×' : ''}${run ? ' · EM ANDAMENTO' : ''}</span>`;
+      }
+      if (t.kind === 'ADICIONAL') out += `<span class="badge-add" title="Este PPPoE já foi verificado antes"><i class="fa-solid fa-clone"></i> ADICIONAL${t.prevCount ? ' · ' + (t.prevCount + 1) + 'ª' : ''}</span>`;
+      return out;
+    };
 
     // ======================= SUBMENUS DA BARRA LATERAL (ADM) =======================
     // Verificação → Conjuntos · Atribuições únicas   |   Equipe & Aprovações → Equipe · Aprovações · Gerenciar usuários
@@ -3338,7 +3366,7 @@
       const f = state.vf, q = norm(f.q);
       const users = new Map(state.users.map(u => [u.email, u.name]));
       const groups = new Map(), kpiTasks = [];
-      state.tasks.forEach(t => {
+      rwCollapse(state.tasks).forEach(t => {   // PPPoE reaberto conta uma vez só (a verificação mais recente dele)
         if (t.single) return;   // atribuições únicas têm seção própria
         const name = t.lote || VF_NONE;
         let g = groups.get(name);
@@ -3633,7 +3661,7 @@
     function vfComputeSingle() {
       const f = state.vf, q = norm(f.q);
       const users = new Map(state.users.map(u => [u.email, u.name]));
-      const base = state.tasks.filter(t => {
+      const base = rwCollapse(state.tasks).filter(t => {   // PPPoE reaberto conta uma vez só (a verificação mais recente dele)
         if (!t.single) return false;
         if (f.tech !== 'ALL' && t.techEmail !== f.tech) return false;
         if (f.shift !== 'ALL' && t.shift !== f.shift) return false;
@@ -3740,7 +3768,7 @@
 
     function renderVfd() {
       const d = state.vfd;
-      const all = state.tasks.filter(t => (t.lote || VF_NONE) === d.name);
+      const all = rwCollapse(state.tasks.filter(t => (t.lote || VF_NONE) === d.name));   // PPPoE reaberto conta uma vez só
       const users = new Map(state.users.map(u => [u.email, u.name]));
       const s = vfStats(all), techs = vfTechGroups(all, users);
 
@@ -3805,8 +3833,8 @@
       const users = new Map(state.users.map(u => [u.email, u.name]));
       const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
       const st = (t) => t.finalizado ? 'Concluída' : (t.emExecucao ? 'Em execução' : 'Não iniciada');
-      const rows = [['Login PPPoE', 'Técnico', 'Prazo', 'Turno', 'Prioridade', 'Classe', 'Situação', 'Atrasada'].map(q).join(';')]
-        .concat(vfdItems.map(t => [t.pppoe, users.get(t.techEmail) || t.techEmail, vfDate(t.date), t.shift, t.priority, t.kind === 'REABERTA' ? 'Reaberta' : (t.kind === 'ADICIONAL' ? 'Adicional' : 'Normal'), st(t), isTaskOverdue(t) ? 'Sim' : 'Não'].map(q).join(';')));
+      const rows = [['Login PPPoE', 'Técnico', 'Prazo', 'Turno', 'Prioridade', 'Classe', 'Reaberturas', 'Situação', 'Atrasada'].map(q).join(';')]
+        .concat(vfdItems.map(t => [t.pppoe, users.get(t.techEmail) || t.techEmail, vfDate(t.date), t.shift, t.priority, t.kind === 'REABERTA' ? 'Reaberta' : (t.kind === 'ADICIONAL' ? 'Adicional' : 'Normal'), rwCount(t), st(t), isTaskOverdue(t) ? 'Sim' : 'Não'].map(q).join(';')));
       const blob = new Blob(['\uFEFF' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -3990,7 +4018,8 @@
         + anKpi('Resolvidas direto', anPctTxt(resPct), `${T.os} abriram O.S. · ${T.other} outro desfecho`, anGoodCls(resPct))
         + anKpi('Entregues no prazo', anPctTxt(onPct), `${T.finished - T.onTime} concluída${T.finished - T.onTime === 1 ? '' : 's'} depois do prazo`, anGoodCls(onPct))
         + anKpi('Tempo médio', anDur(T.tmaSec), `${T.tmaN} atendimento${T.tmaN === 1 ? '' : 's'} medido${T.tmaN === 1 ? '' : 's'}`, 'text-indigo-400')
-        + anKpi('Em aberto agora', now.open, `${now.late} atrasada${now.late === 1 ? '' : 's'} · ${now.pend} pend. de contato`, now.late ? 'text-amber-400' : 'text-emerald-400');
+        + anKpi('Em aberto agora', now.open, `${now.late} atrasada${now.late === 1 ? '' : 's'} · ${now.pend} pend. de contato`, now.late ? 'text-amber-400' : 'text-emerald-400')
+        + anKpi('Retrabalho', T.rework || 0, `reabertura${(T.rework || 0) === 1 ? '' : 's'} de verificações concluídas · ${RANGE_INFO[range].label.toLowerCase()}`, T.rework ? 'text-violet-300' : 'text-emerald-400');
 
       const avgEl = document.getElementById('adm-kpi-avg-time'); if (avgEl) avgEl.textContent = anDur(T.tmaSec);
       const avgSub = document.getElementById('adm-kpi-avg-sub'); if (avgSub) avgSub.textContent = `por atendimento · ${RANGE_INFO[range].label.toLowerCase()}`;
@@ -4036,14 +4065,14 @@
       });
       const tb = document.getElementById('adm-an-techs-table');
       if (tb) tb.innerHTML = !a.techs.length ? '<div class="text-center text-xs text-slate-500 py-4">Nenhuma verificação concluída no período.</div>' : `
-        <table class="w-full text-xs text-left min-w-[34rem]">
+        <table class="w-full text-xs text-left min-w-[38rem]">
           <thead><tr class="text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-800">
             <th class="py-2 pr-3 font-bold">Técnico</th><th class="py-2 px-3 font-bold text-right">Concluídas</th><th class="py-2 px-3 font-bold text-right">Resolvida direto</th>
-            <th class="py-2 px-3 font-bold text-right">Abriu O.S.</th><th class="py-2 px-3 font-bold text-right">No prazo</th><th class="py-2 pl-3 font-bold text-right">Tempo médio</th></tr></thead>
+            <th class="py-2 px-3 font-bold text-right">Abriu O.S.</th><th class="py-2 px-3 font-bold text-right">No prazo</th><th class="py-2 px-3 font-bold text-right" title="Verificações concluídas por este técnico que foram reabertas no período">Reabertas</th><th class="py-2 pl-3 font-bold text-right">Tempo médio</th></tr></thead>
           <tbody class="divide-y divide-slate-800">${a.techs.map(t => { const r = anPct(t.resolved, t.finished), o = anPct(t.onTime, t.finished); return `<tr>
             <td class="py-2 pr-3 text-slate-200 font-semibold">${esc(t.name)}</td><td class="py-2 px-3 text-right font-mono text-white">${t.finished}</td>
             <td class="py-2 px-3 text-right font-mono ${anGoodCls(r)}">${anPctTxt(r)}</td><td class="py-2 px-3 text-right font-mono text-amber-300">${t.os}</td>
-            <td class="py-2 px-3 text-right font-mono ${anGoodCls(o)}">${anPctTxt(o)}</td><td class="py-2 pl-3 text-right font-mono text-indigo-300">${anDur(t.tmaSec)}</td></tr>`; }).join('')}</tbody></table>`;
+            <td class="py-2 px-3 text-right font-mono ${anGoodCls(o)}">${anPctTxt(o)}</td><td class="py-2 px-3 text-right font-mono ${t.rework ? 'text-violet-300 font-bold' : 'text-slate-600'}">${t.rework || 0}</td><td class="py-2 pl-3 text-right font-mono text-indigo-300">${anDur(t.tmaSec)}</td></tr>`; }).join('')}</tbody></table>`;
     }
 
     // ---------- Técnico (só os próprios números) ----------
@@ -5168,12 +5197,14 @@
 
       document.getElementById('badge-tec-active-count').innerText = myActiveTasks.length;
       // Histórico: um PPPoE aparece uma vez só (a conclusão mais recente); as anteriores ficam na auditoria.
-      // PPPoE que o próprio técnico reabriu (e está de volta na fila) não aparece aqui.
+      // PPPoE REABERTO (retrabalho) continua na lista, com o selo "REABERTA · EM ANDAMENTO" enquanto a reabertura não termina:
+      // o status fica no próprio PPPoE, sem sumir e sem aparecer de novo como outra linha. Só some da lista o PPPoE que está
+      // de volta na fila por outro motivo (uma nova atribuição, e não uma reabertura).
       const myOpenLogins = new Set(myActiveTasks.map(t => t.pppoe.toLowerCase()));
       const seenHist = new Set();
       const myHistoryUnique = myCompletedTasks.filter(t => {
         const k = t.pppoe.toLowerCase();
-        if (seenHist.has(k) || myOpenLogins.has(k)) return false;
+        if (seenHist.has(k) || (myOpenLogins.has(k) && !rwOpen(t))) return false;
         seenHist.add(k);
         return true;
       });
@@ -5637,13 +5668,18 @@
       // Durante a confirmação o estado pode ter mudado (sincronização, outro técnico): confere de novo antes de criar
       const aberta2 = state.tasks.find(x => x.pppoe === task.pppoe && !x.finalizado);
       if (aberta2) { showToast(openOwnerMsg(aberta2), 'warning'); return false; }
+      // Retrabalho: a cadeia é identificada pela primeira verificação (a original). O servidor grava isso (root_id) e devolve
+      // 'chain'/'reopens'; aqui a tela já mostra o mesmo na hora, para o PPPoE não "sumir" nem duplicar enquanto sincroniza.
+      const root = task.chain || task.id, reopensN = (task.reopens || 0) + 1;
       state.tasks.unshift({
         id: 'tsk-' + Date.now(), techEmail: isAdm ? task.techEmail : state.currentUser.email,
         shift: task.shift, date: todayStr, pppoe: task.pppoe, lote: task.lote, priority: task.priority || 'NORMAL', obs: '',
         kind: 'REABERTA', prevCount: (task.prevCount || 0) + 1, reopenOf: task.id, single: !!task.single,
+        chain: root, reopens: reopensN,
         ligou: false, naoAtende: false, resolvido: false, osCriada: false, actionId: 'NONE',
         handleTimeMin: task.handleTimeMin || 8, finalizado: false, emExecucao: false,
       });
+      state.tasks.forEach(x => { if (x.id === root || x.chain === root) { x.chain = root; x.reopens = reopensN; } });
       saveStorage();
       showToast('Verificação reaberta como nova verificação (REABERTA). A anterior continua concluída, com o resultado preservado.', 'success');
       renderTecDashboard();
@@ -5935,7 +5971,8 @@
                (t.obs && t.obs.toLowerCase().includes(search));
       });
 
-      document.getElementById('tec-history-total-count').innerText = `Concluídas: ${filtered.length}`;
+      const inProgress = filtered.filter(t => rwOpen(t)).length;   // reaberturas em andamento (continuam na lista, com selo)
+      document.getElementById('tec-history-total-count').innerText = `Concluídas: ${filtered.length - inProgress}` + (inProgress ? ` · ${inProgress} reaberta${inProgress === 1 ? '' : 's'} em andamento` : '');
 
       const totalPages = Math.ceil(filtered.length / state.tecHistPerPage) || 1;
       if (state.tecHistPage < 1) state.tecHistPage = 1;
@@ -5978,10 +6015,12 @@
               <button onclick="openVerificationDetailModal('${t.id}')" title="Ver Raio-X Detalhado" class="p-1.5 bg-slate-800 hover:bg-brand-500/20 text-brand-400 rounded-lg transition border border-slate-700 mr-1">
                 <i class="fa-solid fa-eye"></i>
               </button>
-              <button onclick="toggleFinalizeTask('${t.id}', false)" title="Reabrir verificação para a Fila Ativa" 
+              ${rwOpen(t)
+                ? `<span title="Este PPPoE já foi reaberto e a nova verificação está em andamento" class="px-3 py-1.5 rounded-xl bg-violet-500/10 text-violet-300 border border-violet-500/30 text-xs font-bold inline-flex items-center gap-1.5"><i class="fa-solid fa-rotate-left"></i> Em andamento</span>`
+                : `<button onclick="toggleFinalizeTask('${t.id}', false)" title="Reabrir verificação para a Fila Ativa" 
                 class="px-3 py-1.5 rounded-xl bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/40 text-xs font-bold transition flex items-center gap-1.5 inline-flex">
                 <i class="fa-solid fa-rotate-left"></i> Reabrir
-              </button>
+              </button>`}
             </td>
           </tr>
         `;
@@ -7595,6 +7634,6 @@
     }, true);
 
   </script>
-  <script src="api-adapter.js?v=1.8.13"></script>   <!-- ?v= força o navegador a buscar a versão nova -->
+  <script src="api-adapter.js?v=1.8.14"></script>   <!-- ?v= força o navegador a buscar a versão nova -->
 </body>
 </html>

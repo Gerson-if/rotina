@@ -217,7 +217,7 @@ Opções avançadas: `config/config.sample.php` (todas comentadas).
 public/        ÚNICA pasta exposta na web: index.html, api-adapter.js, api.php, install.php (some após instalar)
 app/           código PHP (Api, Sync, Auth, Backup, Updater, Installer, Migrator, Jobs...)
 bin/rotina.php ferramenta de terminal   ·   ./rotina  atalho que roda como o dono dos arquivos
-migrations/    001 a 015 (lista em docs/05-arquitetura-e-api.md)   (novas: 016_...sql)
+migrations/    001 a 016 (lista em docs/05-arquitetura-e-api.md)   (novas: 017_...sql)
 config/        config.php (gerado pelo instalador, privado) · config.sample.php
 storage/       backups, logs, releases (cópias para rollback) — privado
 deploy/        modelos de Apache (IP e subpasta) e Nginx
