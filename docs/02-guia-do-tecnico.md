@@ -106,7 +106,8 @@ observações que ela já tinha **continuam como estavam** (o "começar em branc
 
 Lista o que você já concluiu, com o resultado de cada atendimento (o menu não mostra número aqui: tudo o que está no histórico já foi concluído). Dali você pode **reabrir** uma
 verificação sua: o sistema cria uma **nova** verificação de classe *Reaberta* para o mesmo PPPoE (a original permanece
-intacta, com o resultado que tinha). Só é possível reabrir verificações **suas**.
+intacta, com o resultado que tinha). Só é possível reabrir verificações **suas**. Antes de reabrir, o sistema **pede confirmação**
+(para evitar reabrir sem querer): só vale depois de clicar em *Sim, reabrir*.
 
 ## 9. Equipe e Meu Dashboard
 

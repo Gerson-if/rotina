@@ -5617,11 +5617,26 @@
 
     // Reabrir uma verificação concluída NÃO a altera: cria uma NOVA verificação da classe especial REABERTA
     // (ligada à anterior), que cai na fila de quem reabriu (técnico) ou do mesmo técnico (ADM).
-    function reopenAsNew(task) {
-      if (!task.finalizado) return;
+    // Pede confirmação antes de reabrir, para ninguém reabrir sem querer. Devolve true só se a reabertura foi feita.
+    async function reopenAsNew(task) {
+      if (!task.finalizado) return false;
       const aberta = state.tasks.find(x => x.pppoe === task.pppoe && !x.finalizado);
-      if (aberta) { showToast(openOwnerMsg(aberta), 'warning'); return; }
+      if (aberta) { showToast(openOwnerMsg(aberta), 'warning'); return false; }
       const isAdm = state.currentUser.role === 'ADM';
+      const donoFila = isAdm ? ((state.users.find(u => u.email === task.techEmail) || {}).name || task.techEmail) : null;
+      const destino = isAdm
+        ? `Ela vai para a fila de <b class="text-slate-100">${esc(donoFila)}</b>.`
+        : 'Ela vai para a <b class="text-slate-100">sua fila</b>.';
+      const ok = await askConfirm({
+        tone: 'warn', icon: 'fa-rotate-left', title: 'Reabrir esta verificação?', ok: 'Sim, reabrir', cancel: 'Não, manter concluída',
+        html: `<p>PPPoE <span class="font-mono font-bold text-slate-100">${esc(task.pppoe)}</span></p>`
+          + `<p>Será criada uma <b class="text-slate-100">nova verificação (REABERTA)</b>. ${destino}</p>`
+          + `<p class="text-slate-400">A verificação atual continua concluída, com o resultado preservado.</p>`,
+      });
+      if (!ok) return false;
+      // Durante a confirmação o estado pode ter mudado (sincronização, outro técnico): confere de novo antes de criar
+      const aberta2 = state.tasks.find(x => x.pppoe === task.pppoe && !x.finalizado);
+      if (aberta2) { showToast(openOwnerMsg(aberta2), 'warning'); return false; }
       state.tasks.unshift({
         id: 'tsk-' + Date.now(), techEmail: isAdm ? task.techEmail : state.currentUser.email,
         shift: task.shift, date: todayStr, pppoe: task.pppoe, lote: task.lote, priority: task.priority || 'NORMAL', obs: '',
@@ -5632,12 +5647,13 @@
       saveStorage();
       showToast('Verificação reaberta como nova verificação (REABERTA). A anterior continua concluída, com o resultado preservado.', 'success');
       renderTecDashboard();
+      return true;
     }
 
-    function toggleFinalizeTask(taskId, isDone) {
+    async function toggleFinalizeTask(taskId, isDone) {
       const task = state.tasks.find(t => t.id === taskId);
-      if (!task) return;
-      if (!isDone) { reopenAsNew(task); return; }
+      if (!task) return false;
+      if (!isDone) return reopenAsNew(task);
       task.finalizado = isDone;
       if (isDone) { task.emExecucao = false; task.finishedAt = naiveStr(srvNow()); }   // vai para o topo do histórico na hora; o servidor confirma o horário oficial
       saveStorage();
@@ -6047,9 +6063,10 @@
       openModal('modal-verification-details');
     }
 
-    function reopenTaskFromModal() {
+    async function reopenTaskFromModal() {
       if (!currentDetailTaskId) return;
-      toggleFinalizeTask(currentDetailTaskId, false);
+      // Se o usuário cancelar a confirmação, o detalhe da verificação continua aberto
+      if (!(await toggleFinalizeTask(currentDetailTaskId, false))) return;
       closeModal('modal-verification-details');
       if (state.currentUser.role === 'ADM') {
         initAdmDashboard();
@@ -7578,6 +7595,6 @@
     }, true);
 
   </script>
-  <script src="api-adapter.js?v=1.8.12"></script>   <!-- ?v= força o navegador a buscar a versão nova -->
+  <script src="api-adapter.js?v=1.8.13"></script>   <!-- ?v= força o navegador a buscar a versão nova -->
 </body>
 </html>
