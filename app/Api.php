@@ -30,7 +30,8 @@ final class Api
                 case 'pending/stats':  self::pendingStats(); return;
                 case 'analytics':      self::analytics(); return;
                 // plano de fundo do login: info e arquivo são PÚBLICOS (a tela de login ainda não tem sessão)
-                case 'branding/login':      Http::json(Branding::publicInfo()); return;
+                //   (é a primeira coisa que a tela de login pede: serve de gatilho para a redistribuição mesmo sem ninguém logado)
+                case 'branding/login':      self::thenRedistribute(static fn() => Http::json(Branding::publicInfo())); return;
                 case 'branding/login-file': Branding::serve(); return;
                 case 'profile':        self::profile(); return;
                 case 'profile/verifications': self::profileVerifications(); return;
@@ -212,9 +213,19 @@ final class Api
             Db::q('INSERT INTO app_state (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)', ['stamp_cache', time() . '|' . $stamp]);
         }
         // Redistribuição automática de pendências: só entra em ação se o ADM ligou e já passou o intervalo; roda DEPOIS da resposta
+        self::thenRedistribute(static fn() => Http::json(['stamp' => $stamp]));
+    }
+
+    /**
+     * Envia a resposta e, depois dela, roda a redistribuição se estiver ligada e na hora (no máximo 1x por minuto, com lock).
+     * É só um gatilho "de carona": o disparo que NÃO depende de ninguém estar usando o sistema é o agendador do servidor
+     * (./rotina cron-install ou o worker), que chama Jobs::runDue.
+     */
+    private static function thenRedistribute(callable $respond): void
+    {
         $redist = Config::get('auto_jobs') && Redistribution::due();
         if ($redist) ob_start();
-        Http::json(['stamp' => $stamp]);
+        $respond();
         if ($redist) {
             ignore_user_abort(true);
             Http::finish();

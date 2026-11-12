@@ -6,6 +6,8 @@
 #  Opções:        --apache  cria o site Apache (porta 80, por IP)
 #                 --cli     conclui pelo terminal em vez do navegador
 #                 --web-user=USUARIO   usuário do servidor web (detecta sozinho)
+#                 --cron    instala o agendador (cron a cada minuto): a Redistribuição e os backups
+#                           rodam mesmo SEM ninguém logado (pergunta se não informar; --no-cron pula)
 #  Não instala pacotes e não mexe no servidor web sem você pedir.
 # =============================================================================
 set -Eeuo pipefail
@@ -20,14 +22,16 @@ warn() { echo "  ${c_warn}⚠${c_off} $*" >&2; }
 die()  { echo "  ${c_err}✘ $*${c_off}" >&2; exit 1; }
 step() { echo; echo "${c_cy}${c_b}[$1/3]${c_off} ${c_b}$2${c_off}"; }
 
-WEB_USER=""; APACHE=0; MODE=web
+WEB_USER=""; APACHE=0; MODE=web; CRON=ask
 for a in "$@"; do
   case "$a" in
     --web-user=*) WEB_USER="${a#*=}" ;;
     --apache) APACHE=1 ;;
+    --cron) CRON=1 ;;
+    --no-cron) CRON=0 ;;
     --cli) MODE=cli ;;
     --web) MODE=web ;;
-    --help|-h) sed -n '2,11p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
+    --help|-h) sed -n '2,12p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
     *) die "Opção desconhecida: $a (use --help)" ;;
   esac
 done
@@ -80,6 +84,17 @@ if [ "$APACHE" -eq 1 ]; then
   [ -e /etc/apache2/sites-enabled/000-default.conf ] && info "Se abrir a página padrão do Apache, rode: a2dissite 000-default && systemctl reload apache2"
 else
   info "Servidor web não alterado. DocumentRoot deve apontar para: $ROOT/public  (modelos em deploy/)"
+fi
+
+# Agendador: sem ele, a Redistribuição de pendências (e backups/métricas) só rodam enquanto alguém está com o sistema aberto.
+if [ "$CRON" = "ask" ] && [ -t 0 ] && [ "$(id -u)" -eq 0 ]; then
+  read -r -p "  Instalar o agendador (cron)? Faz a Redistribuição rodar mesmo sem ninguém logado. [S/n] " r
+  [[ "${r,,}" == n* ]] && CRON=0 || CRON=1
+fi
+if [ "$CRON" = "1" ]; then
+  ./rotina cron-install >/dev/null && ok "Agendador instalado (cron a cada minuto)" || warn "Não consegui instalar o agendador. Depois rode: sudo ./rotina cron-install"
+else
+  info "Agendador NÃO instalado: a Redistribuição só roda com alguém usando o sistema. Para ativar: sudo ./rotina cron-install"
 fi
 
 # ---- 3. instalação ----------------------------------------------------------

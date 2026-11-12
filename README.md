@@ -73,7 +73,9 @@ install.sh     preparação + instalação guiada
 ./rotina backup        # backup agora
 ./rotina update pacote.zip
 ./rotina rollback      # volta o código da versão anterior
-./rotina cron          # rotinas agendadas (use a cada minuto se o cron substituir o automático)
+./rotina cron          # roda as rotinas agendadas uma vez (redistribuição, métricas, backup)
+sudo ./rotina cron-install   # instala o agendador (a cada minuto): a redistribuição roda mesmo sem ninguém logado
+sudo ./rotina cron-remove    # remove o agendador
 curl -s http://IP/api.php?r=healthz     # monitoramento
 ```
 

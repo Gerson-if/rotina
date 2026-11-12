@@ -137,7 +137,7 @@ Nunca edite uma migration já aplicada — o sistema recusa (checksum). Novas mu
 > **Pela tela:** aba **Sistema** → *Fazer backup agora*, ícone de download para guardar uma cópia, e ícone de relógio para **restaurar**
 > (é preciso digitar RESTAURAR; antes disso o sistema guarda uma cópia do estado atual). A lixeira exclui um backup e **Limpar antigos** mantém só os mais recentes.
 
-**Automático:** todo dia depois das 02:30 (configurável), disparado pelo uso normal do sistema, sem cron e sem `mysqldump`.
+**Automático:** todo dia depois das 02:30 (configurável), disparado pelo agendador do servidor (seção 7) ou, na falta dele, pelo uso normal do sistema; sem `mysqldump`.
 Arquivos em `storage/backups/` (`rotina_AAAAMMDD_HHMMSS.sql.gz`): instantâneo consistente (não trava o sistema), validado
 ao final (gzip íntegro, todas as tabelas, marcador de conclusão). Rotação: 14 diários, 6 mensais, 10 com rótulo (`pre-update`, `pre-restore`, `manual`).
 
@@ -163,22 +163,49 @@ Para exportar manualmente: **Exportar → Rápido → SQL**. Antes de importar p
 
 ## 7. Rotinas agendadas
 
-Rodam **dentro do próprio sistema**, depois de responder ao usuário (ele não espera): **redistribuição de pendências** (a cada ~1 min, se ligada);
-métricas do dia a cada 30 min; após 00:10 fecham o dia anterior e fazem a manutenção (retenção da auditoria, limpeza de tentativas antigas);
-backup diário. Usam lock no banco (acessos simultâneos não duplicam trabalho).
+O que roda: **redistribuição de pendências** (a cada ~1 min, se ligada); métricas do dia a cada 30 min; após 00:10, fechamento do dia
+anterior e manutenção (retenção da auditoria, limpeza de tentativas antigas); backup diário. Usam lock no banco (execuções simultâneas
+não duplicam trabalho).
 
-*Limitação:* só disparam quando alguém usa o sistema. Se quiser horário exato mesmo sem acessos, use o cron do servidor e
-desligue o automático (`'auto_jobs' => false` em `config/config.php`) e agende **a cada minuto** (a Redistribuição precisa desse ritmo):
+**Quem dispara (leia: é o que decide se a redistribuição roda sem ninguém logado):**
+
+| Gatilho | Roda sem ninguém logado? | Observação |
+|---|---|---|
+| **Agendador do servidor** (`cron-install` ou `worker`) | **Sim, 24 h** | **Recomendado.** Instale uma vez (abaixo). |
+| De carona no uso (navegadores logados e tela de login) | Não | Complemento. Sem acessos, nada dispara. |
+
+**Instalação automática:** ao atualizar (tela *Sistema* ou `./rotina update`), o sistema tenta instalar o agendador sozinho no crontab do usuário
+que roda o sistema (sem root). Na primeira atualização para a 1.8.16 isso acontece no primeiro acesso depois de atualizar. Se o servidor não permitir,
+a tela Redistribuição avisa e você faz o passo abaixo. Desligar: `'auto_cron' => false`.
+
+**Instalar o agendador manualmente (uma vez, no servidor):**
+```bash
+cd /var/www/rotina
+sudo ./rotina cron-install      # grava /etc/cron.d/rotina: roda "./rotina cron" a cada minuto, como o usuário do site
+sudo ./rotina cron-remove       # remove
 ```
-* * * * *  /var/www/rotina/rotina cron
+No `install.sh` isso é oferecido na instalação (`--cron` / `--no-cron`). Sem root, `./rotina cron-install` usa o `crontab` do próprio usuário.
+Precisa do serviço **cron** ativo (Debian/Ubuntu: `apt install cron && systemctl enable --now cron`).
+
+**Alternativa ao cron: serviço contínuo (systemd).** Em vez do cron, use `deploy/rotina-worker.service` (ajuste `User` e o caminho):
+```bash
+sudo cp deploy/rotina-worker.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now rotina-worker
+journalctl -u rotina-worker -f          # acompanhar
 ```
+Use **um** dos dois. Os dois juntos não duplicam trabalho (há trava no banco), mas é desnecessário. Com agendador instalado, pode deixar
+`'auto_jobs' => true` (padrão: o gatilho "de carona" continua como reforço) ou colocar `false` para só o agendador disparar.
+
+**Como saber se está funcionando:** com a redistribuição ligada, a tela **Redistribuição** (ADM) mostra um aviso amarelo
+"*Agendador do servidor não está ativo*" quando não há sinal do cron/worker nos últimos 3 min. Sem aviso = ativo. Pela linha de comando:
+`./rotina cron` roda uma volta na hora e imprime o que fez.
 
 ### 7.1 Redistribuição automática de pendências
 
 A regra completa (quem recebe, como escolhe, limite de trocas, segurança) está em
 [Regras e fluxos → Redistribuição automática](04-regras-e-fluxos.md#6-redistribuição-automática).
-Do ponto de vista de operação, o que importa é: ela roda a cada ~1 minuto **enquanto alguém usa o sistema**. Se você usa o
-`cron` em vez do automático (`'auto_jobs' => false`), agende **a cada minuto** (`* * * * *`) para ela funcionar bem.
+Do ponto de vista de operação, o que importa é: **sem o agendador do servidor (seção 7), ela só roda enquanto alguém está com o
+sistema aberto** (logado ou na tela de login). Para rodar sozinha, 24 h, rode **uma vez** `sudo ./rotina cron-install` (a cada minuto).
 
 ## 8. Operação do dia a dia
 

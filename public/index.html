@@ -1312,6 +1312,7 @@
 
           <div id="rd-body" oninput="redistTouched()" onchange="redistTouched()" class="p-5 space-y-5 text-xs">
             <div id="rd-status" class="grid grid-cols-3 gap-2"></div>
+            <div id="rd-sched" class="hidden rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-[11px] text-amber-200 leading-relaxed"></div>
 
             <button type="button" id="rd-on" onclick="redistToggleOn()" role="switch" aria-checked="false" class="w-full flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition">
               <span><span class="block font-bold text-sm text-white">Redistribuição automática</span><span id="rd-on-sub" class="block text-[11px] text-slate-400"></span></span>
@@ -6640,6 +6641,13 @@
         card('fa-inbox', 'text-orange-400', 'Fila central', st.pool, st.pool ? ('mais antiga ' + redistAge(st.oldest) + (st.stuck ? ` · ${st.stuck} precisam de você` : '')) : 'vazia')
         + card('fa-shuffle', 'text-sky-400', 'Distribuídas hoje', st.today, 'pelo sistema')
         + card('fa-clock-rotate-left', 'text-slate-400', 'Última execução', `<span class="text-sm">${esc(last)}</span>`, st.last ? (st.last.by === 'auto' ? 'automática' : 'manual') : '&nbsp;');
+      // Sem o agendador do servidor (cron/worker), a rotina só roda com alguém usando o sistema: avisa o ADM em vez de falhar em silêncio
+      const sc = byId('rd-sched'), noSched = !!(c.on && st.sched && !st.sched.active);
+      if (sc) {
+        sc.classList.toggle('hidden', !noSched);
+        if (noSched) sc.innerHTML = '<b><i class="fa-solid fa-triangle-exclamation mr-1"></i>Agendador do servidor não está ativo.</b> A redistribuição automática só roda enquanto alguém está com o sistema aberto. Para rodar <b>sozinha, mesmo sem ninguém logado</b>, peça a quem cuida do servidor para executar <code class="px-1 py-0.5 rounded bg-slate-950 text-amber-300">sudo ./rotina cron-install</code> na pasta do sistema.'
+          + (st.sched.last ? ` <span class="text-amber-300/70">(último sinal do agendador: ${esc(sysFmt(String(st.sched.last).replace(' ', 'T')))})</span>` : '');
+      }
       byId('rd-how').value = c.how; byId('rd-wait').value = c.wait; byId('rd-cap').value = c.cap; byId('rd-max').value = c.max;
       byId('rd-shifts').innerHTML = st.shifts.map((s) => `
         <label class="flex items-center gap-2.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 cursor-pointer">
@@ -7719,6 +7727,6 @@
     }, true);
 
   </script>
-  <script src="api-adapter.js?v=1.8.15"></script>   <!-- ?v= força o navegador a buscar a versão nova -->
+  <script src="api-adapter.js?v=1.8.16"></script>   <!-- ?v= força o navegador a buscar a versão nova -->
 </body>
 </html>

@@ -15,7 +15,8 @@ final class Config
         'bcrypt_cost'          => 12,
         'bootstrap_days'       => 120,
         'audit_retention_days' => 365,
-        'auto_jobs'            => true,     // rotinas rodam sozinhas (sem cron). Use cron e false se preferir.
+        'auto_jobs'            => true,     // rotinas "de carona" nas requisições (só rodam com alguém acessando). O agendador do servidor (./rotina cron-install) roda sem ninguém logado.
+        'auto_cron'            => true,     // tenta instalar o agendador (cron) sozinho na atualização/uso. false = só manual (./rotina cron-install)
         'backup' => [
             'auto'         => true,         // backup diário automático
             'time'         => '02:30',

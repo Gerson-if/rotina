@@ -16,7 +16,10 @@ return [
     'bootstrap_days'       => 120,      // histórico de finalizadas que o painel carrega
     'audit_retention_days' => 365,
 
-    'auto_jobs' => true,                // rotinas "de carona" nas requisições. Com cron, coloque false.
+    // Rotinas "de carona" nas requisições (só rodam com alguém acessando). Para a Redistribuição e os backups rodarem SEM ninguém
+    // logado, instale o agendador do servidor:  sudo ./rotina cron-install   (com ele, true ou false funcionam).
+    'auto_cron' => true,                // tenta instalar sozinho o agendador (crontab do usuário) ao atualizar. false = só manual.
+    'auto_jobs' => true,
     'backup' => [
         'auto' => true, 'time' => '02:30',
         'keep_daily' => 14, 'keep_monthly' => 6, 'keep_labeled' => 10,

@@ -222,6 +222,7 @@ final class Updater
             $maintenanceOn = false;
             self::prune();
             self::say($log, "Atualização concluída: $current → $new. Modo manutenção DESLIGADO.");
+            try { if (($m = self::schedulerStep()) !== '') self::say($log, $m); } catch (\Throwable $e) { /* opcional: nunca falha a atualização */ }
         } catch (\Throwable $e) {
             if ($undo && $maintenanceOn) {
                 // erro no meio da troca de pastas: desfaz o que já foi trocado
@@ -234,6 +235,16 @@ final class Updater
             flock($lock, LOCK_UN);
             fclose($lock);
         }
+    }
+
+    /** Agendador (cron): roda no código NOVO, em outro processo (o desta execução ainda é o antigo). Opcional e silencioso se falhar. */
+    private static function schedulerStep(): string
+    {
+        $php = self::phpCli();
+        if (!$php) return '';
+        $o = []; $rc = 1;
+        @exec(escapeshellarg($php) . ' ' . escapeshellarg(ROOT . '/bin/rotina.php') . ' ensure-scheduler 2>&1', $o, $rc);
+        return $rc === 0 ? trim(implode(' ', $o)) : '';
     }
 
     /** Roda o `status` do código NOVO em outro processo. @return string|null motivo da falha */

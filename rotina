@@ -1,11 +1,61 @@
 #!/usr/bin/env bash
-# Atalho:  ./rotina <comando>     (ex.: ./rotina status | backup | update pacote.zip | rollback)
+# Atalho:  ./rotina <comando>     (ex.: ./rotina status | backup | update pacote.zip | rollback | cron-install)
 # Sempre executa como o DONO dos arquivos (o usuário do servidor web), para que backups, logs e
 # arquivos atualizados nunca fiquem com o dono errado e quebrem o site.
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 ROOT="$(pwd)"
 PHP="$(command -v php)" || { echo "PHP não encontrado no PATH." >&2; exit 1; }
 OWNER="$(stat -c %U "$ROOT/storage" 2>/dev/null || stat -f %Su "$ROOT/storage")"
+
+# ---- Agendador: roda as rotinas (redistribuição de pendências, métricas, backup) a cada minuto, SEM depender de ninguém logado.
+#   sudo ./rotina cron-install     instala        |     sudo ./rotina cron-remove     remove
+# Com root grava /etc/cron.d/rotina (executa como o dono dos arquivos). Sem root usa o crontab do próprio usuário.
+CRON_FILE=/etc/cron.d/rotina
+CRON_TAG="# rotina-agendador"
+cron_daemon_hint() {
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl is-active --quiet cron 2>/dev/null || systemctl is-active --quiet crond 2>/dev/null \
+      || echo "AVISO: não encontrei o serviço do cron ativo. Instale/ative (Debian/Ubuntu: apt install cron && systemctl enable --now cron)." >&2
+  fi
+}
+case "${1:-}" in
+  cron-install)
+    if [ "$(id -u)" -eq 0 ]; then
+      printf '%s\n' "$CRON_TAG: gerado por './rotina cron-install'. Para remover: ./rotina cron-remove" \
+        "SHELL=/bin/sh" "PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin" \
+        "* * * * * $OWNER $ROOT/rotina cron >/dev/null 2>&1" > "$CRON_FILE" && chmod 644 "$CRON_FILE" \
+        || { echo "ERRO: não consegui gravar $CRON_FILE" >&2; exit 1; }
+      echo "==> Agendador instalado em $CRON_FILE (roda a cada minuto como '$OWNER')."
+      # se o sistema já tinha posto uma versão no crontab do usuário (instalação automática), tira: ficaria duplicado
+      if command -v crontab >/dev/null 2>&1 && crontab -u "$OWNER" -l 2>/dev/null | grep -qF "$CRON_TAG"; then
+        crontab -u "$OWNER" -l 2>/dev/null | grep -vF "$CRON_TAG" | crontab -u "$OWNER" - && echo "    (removida a cópia do crontab de '$OWNER', para não duplicar)"
+      fi
+    else
+      command -v crontab >/dev/null 2>&1 || { echo "ERRO: 'crontab' não encontrado. Rode com sudo ou instale o cron." >&2; exit 1; }
+      { crontab -l 2>/dev/null | grep -vF "$CRON_TAG"; echo "* * * * * $ROOT/rotina cron >/dev/null 2>&1 $CRON_TAG"; } | crontab - \
+        || { echo "ERRO: não consegui gravar o crontab do usuário $(id -un)." >&2; exit 1; }
+      echo "==> Agendador instalado no crontab do usuário '$(id -un)' (roda a cada minuto)."
+    fi
+    cron_daemon_hint
+    echo "    Confira em alguns minutos: a tela Redistribuição não deve mais mostrar o aviso de agendador."
+    exit 0 ;;
+  cron-remove)
+    removed=0
+    if [ -f "$CRON_FILE" ]; then rm -f "$CRON_FILE" && removed=1 && echo "==> Removido $CRON_FILE"; fi
+    if [ "$(id -u)" -eq 0 ] && command -v crontab >/dev/null 2>&1 && crontab -u "$OWNER" -l 2>/dev/null | grep -qF "$CRON_TAG"; then
+      crontab -u "$OWNER" -l 2>/dev/null | grep -vF "$CRON_TAG" | crontab -u "$OWNER" - && removed=1 && echo "==> Removido do crontab de '$OWNER'"
+    fi
+    if command -v crontab >/dev/null 2>&1 && crontab -l 2>/dev/null | grep -qF "$CRON_TAG"; then
+      crontab -l 2>/dev/null | grep -vF "$CRON_TAG" | crontab - && removed=1 && echo "==> Removido do crontab do usuário '$(id -un)'"
+    fi
+    [ "$removed" -eq 1 ] || echo "Nada para remover (agendador não estava instalado por aqui)."
+    exit 0 ;;
+esac
+if [ "${1:-}" = "update" ] && [ "$(id -u)" -eq 0 ] && [ "$OWNER" != "root" ] && command -v runuser >/dev/null 2>&1; then
+  runuser -u "$OWNER" -- "$PHP" "$ROOT/bin/rotina.php" "$@"; rc=$?
+  if [ $rc -eq 0 ] && [ ! -f "$CRON_FILE" ]; then "$ROOT/rotina" cron-install || true; fi
+  exit $rc
+fi
 if [ "$(id -u)" -eq 0 ] && [ "$OWNER" != "root" ]; then
   if command -v runuser >/dev/null 2>&1; then exec runuser -u "$OWNER" -- "$PHP" "$ROOT/bin/rotina.php" "$@"; fi
   exec sudo -u "$OWNER" "$PHP" "$ROOT/bin/rotina.php" "$@"

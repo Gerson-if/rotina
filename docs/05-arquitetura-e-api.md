@@ -50,7 +50,8 @@ flowchart LR
 | `Http.php` | Entrada/saída JSON, limite de tentativas por IP, erros (`HttpError`) |
 | `Db.php` | Conexão PDO, transações, travas (`GET_LOCK`), fuso horário |
 | `Mappers.php` | Converte linhas do banco em objetos para a tela (inclui a classe real da verificação) |
-| `Jobs.php` | Rotinas agendadas "de carona" (métricas, manutenção, backup, redistribuição) |
+| `Scheduler.php` | Instala sozinho o cron do agendador (crontab do usuário), na atualização e no uso; `auto_cron` desliga |
+| `Jobs.php` | Rotinas agendadas (redistribuição, métricas, manutenção, backup); disparadas pelo agendador do servidor (`cron`/`worker`) e, de carona, pelo uso |
 | `Backup.php`, `Updater.php`, `Installer.php`, `Migrator.php`, `SqlSplitter.php`, `System.php` | Backup/restauração, atualização com rollback, instalação, migrations, tela Sistema |
 | `Branding.php` | Plano de fundo da tela de login |
 | `Config.php`, `Util.php` | Configuração, utilidades (IDs, auditoria, texto) |
@@ -244,7 +245,9 @@ Rodam **depois de responder ao usuário**, protegidas por trava no banco (nunca 
 | Fechamento e manutenção | Depois das 00:10 | Fecha o dia anterior; aplica a retenção da auditoria; limpa tentativas antigas |
 | Backup | Diário, depois das 02:30 | Backup automático com rotação |
 
-Disparam por `bootstrap`, por `stamp` (redistribuição) ou por `./rotina cron`. Se `auto_jobs` estiver `false`, só o `cron` as dispara.
+Disparam por: **agendador do servidor** (`./rotina cron`, instalado por `./rotina cron-install`, ou `rotina.php worker`; **não dependem de login**),
+e "de carona" por `bootstrap`, `stamp` e pela rota pública `branding/login` (redistribuição). Se `auto_jobs` estiver `false`, só o agendador as dispara.
+O agendador grava `app_state.sched_ts` (sinal de vida); `admin/redistribution` devolve `status.sched` (`active`, `last`) e a tela avisa quando falta.
 
 ## 7. Configuração (`config/config.php`)
 
@@ -258,7 +261,7 @@ O instalador gera o essencial (`db`, `secret`, `tz`). As demais chaves usam o pa
 | `bcrypt_cost` | 12 | Custo das senhas |
 | `bootstrap_days` | 120 | Dias de histórico concluído que a tela carrega |
 | `audit_retention_days` | 365 | Retenção da auditoria geral |
-| `auto_jobs` | `true` | Rotinas "de carona"; com cron, use `false` |
+| `auto_jobs` | `true` | Rotinas "de carona" nas requisições (reforço). Com o agendador do servidor pode ficar `true` ou `false` |
 | `backup` | `auto`, `02:30`, 14 diários, 6 mensais, 10 rotulados | Backup automático e rotação |
 
 **Configuração da Redistribuição** (guardada no banco, em `app_state`, chave `redist`; editada pela tela):

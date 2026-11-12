@@ -158,8 +158,12 @@ A rotina entrega as pendências da fila central a técnicos, **de forma justa**,
 
 ### Quando roda
 
-- No máximo **uma vez por minuto**, enquanto alguém estiver com o sistema aberto (cada navegador consulta o servidor a cada 5 s e isso dispara a rotina).
-- Também pelo agendador do servidor: `./rotina cron` (útil para rodar mesmo sem ninguém conectado; agende a cada minuto).
+- No máximo **uma vez por minuto**.
+- **Sem ninguém logado:** pelo **agendador do servidor**, que é o jeito certo de operar. Instale uma vez com `sudo ./rotina cron-install`
+  (ou use o serviço `deploy/rotina-worker.service`). Com ele, a redistribuição roda 24 h, mesmo de madrugada e com todo mundo deslogado.
+- **De carona**, enquanto houver acesso: cada navegador logado consulta o servidor a cada 5 s, e abrir a tela de login também dispara.
+  Isso é só um complemento: **sem o agendador do servidor e sem ninguém acessando, nada roda**. Por isso, ligada a redistribuição e
+  sem agendador ativo, a tela **Redistribuição** mostra um aviso amarelo.
 - Só age se estiver **ligada**. Um **bloqueio** no banco impede duas execuções ao mesmo tempo.
 
 ### O que entra na distribuição

@@ -3,12 +3,15 @@ declare(strict_types=1);
 namespace Rotina;
 
 /**
- * Rotinas agendadas SEM daemon:
+ * Rotinas agendadas (a redistribuição de pendências roda a cada ~1 min):
  *   - métricas do dia a cada 30 min
  *   - após 00:10: fecha métricas de ontem + manutenção (retenção da auditoria, conjuntos órfãos, destravar contas)
  *   - backup diário depois do horário configurado
- * runDue() é chamado de forma "preguiçosa" pelo próprio sistema (depois de responder ao usuário) e/ou
- * por `php bin/rotina.php cron`. Cada rotina usa GET_LOCK: execuções simultâneas não duplicam trabalho.
+ * Quem dispara runDue():
+ *   - O AGENDADOR DO SERVIDOR (recomendado, não depende de ninguém logado): `./rotina cron-install` (cron a cada minuto)
+ *     ou `php bin/rotina.php worker` (serviço contínuo, veja deploy/rotina-worker.service);
+ *   - "de carona" no uso do sistema (depois de responder ao usuário), enquanto houver acessos.
+ * Cada rotina usa GET_LOCK: execuções simultâneas não duplicam trabalho.
  */
 final class Jobs
 {
@@ -28,34 +31,58 @@ final class Jobs
         try { $fn(); } finally { Db::unlock("rotina_job_$name"); }
     }
 
+    /** Roda uma rotina isolada: se ela falhar, registra no log e as demais seguem (uma não trava a outra). */
+    private static function safe(string $tag, callable $fn): void
+    {
+        try { $fn(); } catch (\Throwable $e) { Util::log($tag, $e->getMessage()); }
+    }
+
+    /**
+     * Marca "o agendador do servidor (cron ou worker) está vivo". A tela da Redistribuição usa isso para avisar o ADM
+     * quando ninguém está disparando as rotinas (nesse caso elas só rodam com alguém usando o sistema).
+     */
+    public static function heartbeat(): void
+    {
+        self::setState('sched_ts', (string) time());
+    }
+
     public static function runDue(?callable $log = null): void
     {
         $log = $log ?: static function (string $m): void {};
         $now = time();
         $hm = date('H:i');
 
+        // redistribuição de pendências PRIMEIRO: é a rotina sensível ao tempo e não pode esperar (nem ser derrubada) por outra.
+        // Só age se o ADM ligou em Redistribuição. Não depende de ninguém estar logado quando o disparo vem do cron/worker.
+        self::safe('redist', static function () use ($log) { if (Redistribution::due()) Redistribution::tick($log); });
+
+        // agendador do servidor: se ninguém o disparou (ainda não instalado), tenta instalar sozinho, no máximo 1x por dia.
+        // Só em requisições web: no CLI (cron/worker) o agendador, por definição, já está rodando.
+        if (PHP_SAPI !== 'cli') self::safe('sched', static function () { $m = Scheduler::ensure(); if ($m !== '') Util::log('sched', $m); });
+
         // métricas: a cada 30 min
         if ($now - (int) self::state('metrics_ts') >= 1800) {
-            self::locked('metrics', function () use ($now, $log) {
-                if ($now - (int) self::state('metrics_ts') < 1800) return;
-                self::refreshMetrics(Db::today());
-                self::setState('metrics_ts', (string) time());
-                $log('métricas de hoje atualizadas');
+            self::safe('metrics', static function () use ($now, $log) {
+                self::locked('metrics', function () use ($now, $log) {
+                    if ($now - (int) self::state('metrics_ts') < 1800) return;
+                    self::refreshMetrics(Db::today());
+                    self::setState('metrics_ts', (string) time());
+                    $log('métricas de hoje atualizadas');
+                });
             });
         }
 
         // fechamento noturno
         if ($hm >= '00:10' && self::state('nightly_date') !== Db::today()) {
-            self::locked('nightly', function () use ($log) {
-                if (self::state('nightly_date') === Db::today()) return;
-                self::refreshMetrics(Db::today(-1));
-                $log('manutenção: ' . self::maintenance());
-                self::setState('nightly_date', Db::today());
+            self::safe('nightly', static function () use ($log) {
+                self::locked('nightly', function () use ($log) {
+                    if (self::state('nightly_date') === Db::today()) return;
+                    self::refreshMetrics(Db::today(-1));
+                    $log('manutenção: ' . self::maintenance());
+                    self::setState('nightly_date', Db::today());
+                });
             });
         }
-
-        // redistribuição de pendências (só age se o ADM ligou em Redistribuição; chamada também a cada /stamp)
-        try { if (Redistribution::due()) Redistribution::tick($log); } catch (\Throwable $e) { Util::log('redist', $e->getMessage()); }
 
         // backup diário
         $bk = Config::get('backup');

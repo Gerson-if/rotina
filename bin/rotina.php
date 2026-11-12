@@ -8,7 +8,7 @@ declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require __DIR__ . '/../app/bootstrap.php';
 
-use Rotina\{Backup, Config, Db, Installer, Jobs, Migrator, SqlSplitter, Updater, Util};
+use Rotina\{Backup, Config, Db, Installer, Jobs, Migrator, Scheduler, SqlSplitter, Updater, Util};
 
 // ----------------------------------------------------------------------------- utilitários CLI
 $G = "\033[32m"; $Y = "\033[33m"; $R = "\033[31m"; $Z = "\033[0m";
@@ -81,7 +81,10 @@ Sistema de Rotina — comandos (php bin/rotina.php <comando>)
   restore <arquivo> [--yes]   Restaura um backup gerado por este sistema
   update <pacote.zip|pasta> [--force]   Atualização segura (backup, migrations, troca, rollback automático)
   rollback [versão]       Volta o código para a versão anterior guardada
-  cron                    Executa as rotinas agendadas (use no cron se quiser horário exato)
+  cron                    Executa as rotinas agendadas UMA vez (redistribuição, métricas, backup). Agende a cada minuto
+  cron-install            Instala o agendador no cron (a cada minuto), para tudo rodar SEM ninguém logado (use sudo)
+  cron-remove             Remove o agendador do cron
+  worker [--every=20]     Alternativa ao cron: fica rodando e executa as rotinas sem parar (serviço systemd: deploy/rotina-worker.service)
 TXT);
             break;
 
@@ -220,7 +223,45 @@ TXT);
 
         case 'cron':
             need_installed();
+            Jobs::heartbeat();   // sinal de vida: o painel da Redistribuição mostra que o agendador do servidor está ativo
             Jobs::runDue(fn($m) => ok($m));
+            break;
+
+        case 'ensure-scheduler':
+            need_installed();
+            $m = Scheduler::ensure(true);
+            if ($m !== '') out($m);
+            break;
+
+        case 'cron-install': case 'cron-remove':
+            // Resolvidos pelo atalho ./rotina (precisam de root para gravar em /etc/cron.d, antes de largar os privilégios).
+            fail('Use o atalho:  sudo ./rotina ' . $cmd);
+            break;
+
+        case 'worker':
+            // Agendador contínuo (alternativa ao cron): não depende de ninguém logado. Roda como serviço (systemd) e reinicia sozinho.
+            need_installed();
+            $every = max(5, min(50, (int) ($opt['every'] ?? 20)));          // segundos entre verificações (a redistribuição respeita o próprio intervalo de ~1 min)
+            $maxRun = max(1, (int) ($opt['max-minutes'] ?? 360)) * 60;      // sai de tempos em tempos; o systemd (Restart=always) sobe de novo, liberando memória/conexões
+            $stop = false;
+            if (function_exists('pcntl_async_signals') && function_exists('pcntl_signal')) {
+                pcntl_async_signals(true);
+                foreach ([SIGINT, SIGTERM] as $sig) pcntl_signal($sig, static function () use (&$stop): void { $stop = true; });
+            }
+            ok("Agendador contínuo iniciado (verifica a cada {$every}s). Para parar: Ctrl+C ou systemctl stop.");
+            $t0 = time();
+            while (!$stop && time() - $t0 < $maxRun) {
+                try {
+                    Db::reset();                                              // conexão nova a cada volta: nunca fica presa a uma conexão que o MySQL derrubou
+                    Jobs::heartbeat();
+                    Jobs::runDue(static fn($m) => out(date('H:i:s') . ' ' . $m));
+                } catch (Throwable $e) {
+                    Util::log('worker', $e->getMessage());
+                    warn('worker: ' . $e->getMessage() . ' (tentando de novo na próxima volta)');
+                }
+                for ($i = 0; $i < $every && !$stop; $i++) sleep(1);
+            }
+            ok('Agendador encerrado.' . ($stop ? '' : ' (reinício programado)'));
             break;
 
         default:

@@ -33,7 +33,10 @@ final class Redistribution
 
     private const KEY = 'redist';
     private const LOCK = 'rotina_job_redistribute';
-    private const TICK_SECONDS = 60;     // intervalo mínimo entre execuções automáticas
+    // Intervalo mínimo entre execuções automáticas. Fica um pouco abaixo de 60 s DE PROPÓSITO: o cron dispara "a cada minuto" com
+    // alguns décimos de segundo de variação; com 60 exatos, um disparo que chegasse 1 s adiantado seria descartado e a rotina
+    // passaria a rodar só de 2 em 2 minutos.
+    private const TICK_SECONDS = 55;
     private const PER_RUN = 200;         // máximo por execução (o resto sai na próxima)
     private const PLAN_PREVIEW = 50;     // linhas mostradas na simulação
 
@@ -150,7 +153,10 @@ final class Redistribution
         return time() - (int) ($m['redist_ts'] ?? 0) >= self::TICK_SECONDS;
     }
 
-    /** Execução automática (sem daemon): chamada pelo /stamp, pelo bootstrap (Jobs) e pelo cron. Um lock evita execuções simultâneas. */
+    /**
+     * Execução automática. Quem chama: o agendador do servidor (cron / worker, via Jobs::runDue, SEM precisar de ninguém logado)
+     * e, de carona, o /stamp, o bootstrap e a tela de login. Um lock evita execuções simultâneas.
+     */
     public static function tick(?callable $log = null): void
     {
         if (!Db::lock(self::LOCK, 0)) return;
@@ -352,6 +358,8 @@ final class Redistribution
                          'apt' => (int) ($people[$s]['apt'] ?? 0), 'total' => (int) ($people[$s]['total'] ?? 0)];
         }
         $last = self::state('redist_last');
+        // O agendador do servidor (cron/worker) deixa um sinal de vida a cada execução. Sem ele, a rotina só roda com alguém usando o sistema.
+        $beat = (int) self::state('sched_ts');
         return [
             'config' => $cfg,
             'status' => [
@@ -359,6 +367,7 @@ final class Redistribution
                 'today' => (int) Db::val("SELECT COUNT(*) FROM verification_events WHERE event = 'REDISTRIBUIDA' AND created_at >= CURDATE()"),
                 'geral' => (int) ($people['GERAL']['apt'] ?? 0),
                 'shifts' => $shifts, 'last' => $last ? json_decode($last, true) : null, 'now' => date('H:i'),
+                'sched' => ['active' => $beat > 0 && time() - $beat < 180, 'last' => $beat > 0 ? date('Y-m-d H:i:s', $beat) : null],
             ],
         ];
     }
