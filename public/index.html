@@ -309,6 +309,7 @@
             <button type="button" id="adm-sub-TEAM" data-title="Equipe" onclick="admGo('APPROVALS','TEAM')" title="Equipe" class="nav-sub"><span class="sub-ico"><i class="fa-solid fa-signal"></i></span><span class="nav-label">Equipe</span><span id="sub-count-TEAM" class="sub-badge"></span></button>
             <button type="button" id="adm-sub-APPROVALS" data-title="Aprovações" onclick="admGo('APPROVALS','APPROVALS')" title="Aprovações" class="nav-sub"><span class="sub-ico"><i class="fa-solid fa-user-check"></i></span><span class="nav-label">Aprovações</span><span id="sub-count-APPROVALS" class="sub-badge"></span></button>
             <button type="button" id="adm-sub-MANAGE" data-title="Gerenciar usuários" onclick="admGo('APPROVALS','MANAGE')" title="Gerenciar usuários" class="nav-sub"><span class="sub-ico"><i class="fa-solid fa-user-pen"></i></span><span class="nav-label">Gerenciar usuários</span><span id="sub-count-MANAGE" class="sub-badge"></span></button>
+            <button type="button" id="adm-sub-VACATION" data-title="Férias" onclick="admGo('APPROVALS','VACATION')" title="Férias" class="nav-sub"><span class="sub-ico"><i class="fa-solid fa-umbrella-beach"></i></span><span class="nav-label">Férias</span><span id="sub-count-VACATION" class="sub-badge"></span></button>
             </div>
           </div>
           <button type="button" onclick="switchAdmSubTab('SYSTEM')" id="adm-subtab-SYSTEM" data-title="Sistema" title="Sistema" class="nav-item">
@@ -325,7 +326,7 @@
             <span class="nav-ico"><i class="fa-solid fa-shuffle"></i></span><span class="nav-label">Redistribuição</span>
           </button>
           <button type="button" onclick="switchAdmSubTab('PENDING')" id="adm-subtab-PENDING" data-title="Pendências" title="Pendências" class="nav-item">
-            <span class="nav-ico"><i class="fa-solid fa-phone-volume"></i></span><span class="nav-label">Pendências</span><span id="badge-adm-pending" class="bg-orange-500 text-slate-950 font-black text-[10px] px-1.5 py-0.5 rounded-full hidden">0</span>
+            <span class="nav-ico"><i class="fa-solid fa-phone-volume"></i></span><span class="nav-label">Pendências</span><span id="badge-adm-pending" class="bg-orange-500 text-slate-950 font-black text-[10px] px-1.5 py-0.5 rounded-full hidden">0</span><span id="badge-adm-follow" title="Pendências enviadas a técnicos que ainda não abriram o sistema" class="bg-rose-500 text-white font-black text-[10px] px-1.5 py-0.5 rounded-full hidden">0</span>
           </button>
           <button type="button" onclick="switchAdmSubTab('NEWSINGLE')" id="adm-subtab-NEWSINGLE" data-title="Atribuição Única" title="Atribuição Única" class="nav-item">
             <span class="nav-ico"><i class="fa-solid fa-plus"></i></span><span class="nav-label">Atribuição Única</span>
@@ -833,7 +834,7 @@
       <!-- SUB-TELA ADM 3: APROVAÇÕES E GESTÃO DE TÉCNICOS -->
       <div id="adm-section-approvals" class="space-y-4 hidden">
         <!-- Sub-seções: cada uma carrega só o seu conteúdo (sem rolar a página inteira) -->
-        <div id="users-mode-bar" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-2"></div>
+        <div id="users-mode-bar" class="hidden grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2"></div>
 
         <!-- Equipe: presença, último acesso e perfis (clique abre o perfil completo) -->
         <div id="users-pane-team" class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
@@ -878,6 +879,18 @@
           <div id="mng-count" class="text-[11px] text-slate-500"></div>
           <div id="tech-list-container" class="space-y-2"></div>
           <div id="mng-pager" class="flex flex-wrap items-center justify-between gap-2"></div>
+        </div>
+
+        <!-- Férias: solicitações dos técnicos, férias em andamento e agendadas -->
+        <div id="users-pane-vacation" class="hidden bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-lg font-bold text-white flex items-center gap-2"><i class="fa-solid fa-umbrella-beach text-amber-400"></i> Férias da equipe</h3>
+              <p class="text-xs text-slate-400">Quem está de férias <b class="text-slate-300">não recebe verificações</b> (nem pela redistribuição, nem por designação) e a equipe vê o status no perfil. Ao começar, o que ele tinha aberto e não iniciou volta para a fila central.</p>
+            </div>
+            <button type="button" onclick="vacOpen()" class="shrink-0 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs transition flex items-center gap-2"><i class="fa-solid fa-plus"></i>Registrar férias</button>
+          </div>
+          <div id="vac-adm-list" class="space-y-5"></div>
         </div>
 
         <div id="users-pane-approvals" class="hidden bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
@@ -1258,6 +1271,11 @@
         </div>
         <div class="max-w-6xl mx-auto space-y-4">
           <div class="text-xs text-slate-400 leading-relaxed">Aqui ficam as verificações que um técnico <b class="text-slate-300">não conseguiu concluir</b> e deixou na fila central. Quando outro técnico assume (ou a Redistribuição envia), ele recebe a nota do colega com <b class="text-slate-300">o que falta fazer</b>. <span id="pd-auto" class="ml-1"></span></div>
+          <div class="flex flex-wrap gap-2" role="tablist" aria-label="Visão das pendências">
+            <button type="button" id="pd-tab-QUEUE" onclick="pdView('QUEUE')" role="tab" class="px-4 py-2 rounded-xl border text-xs font-bold transition"><i class="fa-solid fa-inbox mr-1.5"></i>Fila central <span id="pd-tab-n-QUEUE" class="ml-1 font-mono"></span></button>
+            <button type="button" id="pd-tab-FOLLOW" onclick="pdView('FOLLOW')" role="tab" class="px-4 py-2 rounded-xl border text-xs font-bold transition"><i class="fa-solid fa-binoculars mr-1.5"></i>Acompanhamento <span id="pd-tab-n-FOLLOW" class="ml-1 font-mono"></span></button>
+          </div>
+          <div id="pd-view-queue" class="space-y-4">
           <div id="pd-kpis" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3"></div>
           <div class="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
             <div id="pd-tools" class="p-4 border-b border-slate-800 flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
@@ -1288,6 +1306,30 @@
             <div id="pd-list"></div>
             <div id="pd-pager" class="p-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3"></div>
           </div>
+          </div>
+          <div id="pd-view-follow" class="space-y-4 hidden">
+            <div class="text-xs text-slate-400 leading-relaxed">Pendências que <b class="text-slate-300">já saíram da fila central</b> e estão com um técnico (enviadas pela redistribuição, designadas por você ou assumidas). Serve para você agir quando o técnico <b class="text-slate-300">nem abriu o sistema</b> depois de receber, principalmente nas urgentes. “Abriu o sistema” quer dizer que o técnico carregou a própria fila depois do envio.</div>
+            <div id="pf-kpis" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3"></div>
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+              <div class="p-4 border-b border-slate-800 flex flex-col lg:flex-row gap-3 lg:items-center justify-between">
+                <div class="relative flex-1 max-w-md">
+                  <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-500 text-xs"></i>
+                  <input type="text" id="pf-search" oninput="dbn('pfq', () => pfSet('q', this.value))" placeholder="Buscar por login, técnico, conjunto ou nota..." class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500">
+                </div>
+                <div class="flex flex-wrap gap-2 items-center">
+                  <select id="pf-origin" onchange="pfSet('origin', this.value)" aria-label="Quem enviou" class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500">
+                    <option value="ALL">Todas as origens</option><option value="SENT">Enviadas (sistema ou ADM)</option><option value="SISTEMA">Redistribuição automática</option><option value="ADM">Designadas pelo ADM</option><option value="TECNICO">Técnico assumiu sozinho</option>
+                  </select>
+                  <select id="pf-done" onchange="pfSetDone(this.value)" aria-label="Concluídas" class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500">
+                    <option value="0">Sem concluídas</option><option value="7" selected>Concluídas: 7 dias</option><option value="30">Concluídas: 30 dias</option><option value="90">Concluídas: 90 dias</option>
+                  </select>
+                  <button type="button" onclick="pfLoad(true)" title="Atualizar" class="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition"><i class="fa-solid fa-rotate"></i></button>
+                </div>
+              </div>
+              <div id="pf-list"></div>
+              <div id="pf-pager" class="p-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1313,6 +1355,7 @@
           <div id="rd-body" oninput="redistTouched()" onchange="redistTouched()" class="p-5 space-y-5 text-xs">
             <div id="rd-status" class="grid grid-cols-3 gap-2"></div>
             <div id="rd-sched" class="hidden rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-[11px] text-amber-200 leading-relaxed"></div>
+            <div id="rd-live" class="space-y-3"></div>
 
             <button type="button" id="rd-on" onclick="redistToggleOn()" role="switch" aria-checked="false" class="w-full flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition">
               <span><span class="block font-bold text-sm text-white">Redistribuição automática</span><span id="rd-on-sub" class="block text-[11px] text-slate-400"></span></span>
@@ -2262,6 +2305,34 @@
     </div>
   </div>
 
+  <!-- MODAL: FÉRIAS (o técnico solicita; o ADM registra direto) -->
+  <div id="modal-vacation" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[85] flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-amber-500/40 rounded-3xl w-full max-w-md shadow-2xl animate-fadeIn overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="vac-title">
+      <div class="p-5 flex items-start gap-3.5">
+        <div class="w-11 h-11 shrink-0 rounded-2xl flex items-center justify-center text-lg bg-amber-500/20 text-amber-300 border border-amber-500/30"><i class="fa-solid fa-umbrella-beach"></i></div>
+        <div class="min-w-0 flex-1 space-y-3 text-xs text-slate-300">
+          <div><h3 id="vac-title" class="text-base font-extrabold text-white">Registrar férias</h3><p id="vac-sub" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+          <div id="vac-tech-wrap"><label for="vac-tech" class="block font-bold text-slate-300 uppercase tracking-wider mb-1 text-[10px]">Técnico</label>
+            <select id="vac-tech" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-500"></select></div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label for="vac-from" class="block font-bold text-slate-300 uppercase tracking-wider mb-1 text-[10px]">Primeiro dia</label>
+              <input id="vac-from" type="date" oninput="vacHint()" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-500"></div>
+            <div><label for="vac-to" class="block font-bold text-slate-300 uppercase tracking-wider mb-1 text-[10px]">Último dia</label>
+              <input id="vac-to" type="date" oninput="vacHint()" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-500"></div>
+          </div>
+          <p id="vac-hint" class="text-[11px] text-slate-400"></p>
+          <div><label for="vac-note" class="block font-bold text-slate-300 uppercase tracking-wider mb-1 text-[10px]">Observação <span class="normal-case font-normal text-slate-500">(opcional)</span></label>
+            <input id="vac-note" type="text" maxlength="300" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-500"></div>
+          <label id="vac-ret-wrap" class="flex items-start gap-2.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 cursor-pointer"><input id="vac-ret" type="checkbox" checked class="accent-amber-500 w-4 h-4 mt-0.5"><span class="text-[11px] leading-relaxed">Devolver para a fila central o que ele tem em aberto e <b class="text-slate-100">ainda não iniciou</b>, para a redistribuição passar a outro técnico. <span id="vac-open-n" class="text-slate-500"></span></span></label>
+        </div>
+      </div>
+      <div class="px-5 pb-5 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2">
+        <button type="button" onclick="closeModal('modal-vacation')" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition">Cancelar</button>
+        <button type="button" id="vac-ok" onclick="vacSubmit()" class="px-5 py-2.5 rounded-xl font-extrabold text-xs transition flex items-center justify-center gap-2 text-white bg-amber-600 hover:bg-amber-500"><i class="fa-solid fa-check"></i><span id="vac-ok-txt">Registrar</span></button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: CONFIRMAÇÃO DO SISTEMA (substitui o pop-up do navegador) -->
   <div id="modal-confirm" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[90] flex items-center justify-center p-4 hidden">
     <div id="cf-box" class="bg-slate-900 border rounded-3xl w-full max-w-md shadow-2xl animate-fadeIn overflow-hidden" role="alertdialog" aria-modal="true" aria-labelledby="cf-title" aria-describedby="cf-body">
@@ -2780,7 +2851,8 @@
       const mark = (id, on) => { const b = g(id); if (b) { b.dataset.active = on ? 'true' : 'false'; if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); } };
       const mode = state.vf.mode, view = state.usersView;
       mark('adm-sub-BATCH', mode !== 'SINGLE'); mark('adm-sub-SINGLE', mode === 'SINGLE');
-      mark('adm-sub-TEAM', view === 'TEAM'); mark('adm-sub-APPROVALS', view === 'APPROVALS'); mark('adm-sub-MANAGE', view === 'MANAGE');
+      mark('adm-sub-TEAM', view === 'TEAM'); mark('adm-sub-APPROVALS', view === 'APPROVALS'); mark('adm-sub-MANAGE', view === 'MANAGE'); mark('adm-sub-VACATION', view === 'VACATION');
+      if (state.currentUser && state.currentUser.role === 'ADM' && !state.vac.loaded && !state.vac.loading) vacLoad(false);   // 1ª vez: traz as férias para o selo do menu
       // contadores
       // Só conta o que ainda tem verificação em aberto: conjunto 100% concluído e atribuição única concluída saem da conta
       // (com o tempo o número não cresce para sempre; sem nada em aberto o indicador some).
@@ -2794,10 +2866,11 @@
       const tip = (id, txt) => { const e = g(id); if (e) e.title = txt; };
       tip('sub-count-BATCH', lots.size ? `${lots.size} conjunto(s) com verificação em aberto` : ''); tip('sub-count-SINGLE', singles ? `${singles} atribuição(ões) única(s) em aberto` : '');
       set('sub-count-TEAM', online == null ? total : `${online}/${total}`); set('sub-count-APPROVALS', pend || '', pend > 0); set('sub-count-MANAGE', act);
+      { const vs = vacSummary(); set('sub-count-VACATION', vs.requests || vs.active || '', vs.requests > 0); tip('sub-count-VACATION', vs.requests ? `${vs.requests} solicitação(ões) aguardando você` : vs.active ? `${vs.active} técnico(s) de férias agora` : ''); }
       // título da barra superior com a subseção
       const t = g('topbar-title');
       if (t && tab === 'BATCHES') t.textContent = 'Verificação · ' + (mode === 'SINGLE' ? 'Atribuições únicas' : 'Conjuntos');
-      else if (t && tab === 'APPROVALS') t.textContent = 'Equipe & Aprovações · ' + ({ TEAM: 'Equipe', APPROVALS: 'Aprovações', MANAGE: 'Gerenciar usuários' }[view] || 'Equipe');
+      else if (t && tab === 'APPROVALS') t.textContent = 'Equipe & Aprovações · ' + ({ TEAM: 'Equipe', APPROVALS: 'Aprovações', MANAGE: 'Gerenciar usuários', VACATION: 'Férias' }[view] || 'Equipe');
     }
 
     // ======================= BARRA LATERAL =======================
@@ -2925,7 +2998,7 @@
       if (tab === 'SYSTEM') loadSystemTab();
       if (tab === 'PROCS') openModalManageActions();      // as 4 opções do grupo "Ações rápidas" agora são páginas, não modais
       if (tab === 'REDIST') openModalRedist();
-      if (tab === 'PENDING') { renderAdmPending(); pdLoadCfg(); }
+      if (tab === 'PENDING') { renderAdmPending(); pdLoadCfg(); pfLoad(true); }
       if (tab === 'NEWSINGLE') openNewTaskModal();
       if (tab === 'NEWSHEET') openModalBatchAssign();
       if (tab === 'APPROVALS') {
@@ -3381,10 +3454,10 @@
       const a = total ? (page - 1) * per + 1 : 0, b = Math.min(total, page * per);
       const btn = (p, label, active, dis) => `<button ${dis ? 'disabled' : ''} onclick="${fn}(${p})" class="min-w-[2rem] px-2.5 py-1.5 rounded-lg border text-xs font-bold transition ${active ? 'bg-brand-500 border-brand-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'} ${dis ? 'opacity-40 cursor-not-allowed' : ''}">${label}</button>`;
       let nums = [];
-      for (let p = 1; p <= pages; p++) if (p === 1 || p === pages || Math.abs(p - page) <= 1) nums.push(p);
+      for (let p = 1; p <= pages; p++) if (p === 1 || p === pages || Math.abs(p - page) <= 2) nums.push(p);
       const out = []; nums.forEach((p, i) => { if (i && p - nums[i - 1] > 1) out.push('<span class="text-slate-600">…</span>'); out.push(btn(p, p, p === page, false)); });
       return `<span class="text-[11px] text-slate-400">Mostrando <b class="text-slate-200">${a}–${b}</b> de <b class="text-slate-200">${total}</b></span>
-        ${pages > 1 ? `<span class="flex items-center gap-1">${btn(page - 1, '<i class="fa-solid fa-chevron-left"></i>', false, page <= 1)}${out.join('')}${btn(page + 1, '<i class="fa-solid fa-chevron-right"></i>', false, page >= pages)}</span>` : ''}`;
+        ${pages > 1 ? `<span class="flex items-center gap-1 flex-wrap">${pages > 5 ? btn(1, '<i class="fa-solid fa-angles-left"></i>', false, page <= 1) : ''}${btn(page - 1, '<i class="fa-solid fa-chevron-left"></i>', false, page <= 1)}${out.join('')}${btn(page + 1, '<i class="fa-solid fa-chevron-right"></i>', false, page >= pages)}${pages > 5 ? btn(pages, '<i class="fa-solid fa-angles-right"></i>', false, page >= pages) : ''}</span>` : ''}`;
     }
 
     // Paginação das listas principais (Conjuntos e Atribuições únicas): páginas, “por página” e “ir para a página” (útil com milhares)
@@ -3556,7 +3629,7 @@
     }
     // ---------- ADM: seção Pendências (acompanhamento das verificações pendentes de contato) ----------
     state.pendStats = { days: 30, q: '', sort: 'LEFT', page: 1, per: 10, loading: false, data: null, loadedDays: null };
-    state.pd = { page: 1, per: 8, filter: 'ALL', q: '', cfg: null, cfgLoading: false };
+    state.pd = { page: 1, per: 10, filter: 'ALL', q: '', cfg: null, cfgLoading: false };
     state.tecPend = { page: 1, per: 6 };
     // ----- Quem deixa / quem retoma: uma das visões do painel (junto de Pendentes, Acima de 24h...) -----
     async function pdrLoad(force) {
@@ -3602,21 +3675,150 @@
       const pages = Math.max(1, Math.ceil(people.length / st.per));
       if (st.page > pages) st.page = pages;
       const maxL = Math.max(1, ...all.map(p => p.left)), maxT = Math.max(1, ...all.map(p => p.took));
-      const bar = (v, max, txt, bg) => `<div class="flex items-center gap-2"><span class="w-9 text-right font-mono font-bold ${txt}">${v}</span><div class="flex-1 h-1.5 rounded bg-slate-800 min-w-[4rem]"><div class="h-1.5 rounded ${bg}" style="width:${Math.round(v / max * 100)}%"></div></div></div>`;
+      const bar = (v, max, txt, bg) => `<div class="flex items-center gap-2"><span class="w-9 text-right font-mono font-bold ${txt}">${v}</span><div class="flex-1 h-1.5 rounded bg-slate-800 min-w-[3rem]"><div class="h-1.5 rounded ${bg}" style="width:${Math.round(v / max * 100)}%"></div></div></div>`;
       const rows = people.slice((st.page - 1) * st.per, st.page * st.per).map(p => {
         const b = bal(p), sh = shifts.get(p.email);
-        return `<tr class="hover:bg-slate-800/30">
-          <td class="px-4 py-2.5"><div class="font-semibold text-slate-100">${esc(p.name)}</div>${sh ? `<div class="text-[10px] text-slate-500">${esc(SHIFT_LABEL[sh] || sh)}</div>` : ''}</td>
-          <td class="px-4 py-2.5 min-w-[9rem]">${bar(p.left, maxL, p.left > p.took + 2 ? 'text-orange-300' : 'text-slate-300', 'bg-orange-400')}</td>
-          <td class="px-4 py-2.5 min-w-[9rem]">${bar(p.took, maxT, 'text-teal-300', 'bg-teal-400')}</td>
-          <td class="px-4 py-2.5 text-right"><span class="inline-block min-w-[2.5rem] px-2 py-0.5 rounded-lg border font-mono font-bold ${b < 0 ? 'bg-orange-500/10 text-orange-300 border-orange-500/30' : b > 0 ? 'bg-teal-500/10 text-teal-300 border-teal-500/30' : 'bg-slate-800 text-slate-400 border-slate-700'}" title="Retomou menos Deixou">${b > 0 ? '+' : ''}${b}</span></td></tr>`;
+        return `<div class="grid grid-cols-12 gap-x-4 gap-y-2 items-center px-4 py-2.5 text-sm hover:bg-slate-800/30">
+          <div class="col-span-9 sm:col-span-4 min-w-0"><div class="font-semibold text-slate-100 break-words">${esc(p.name)}</div>${sh ? `<div class="text-[10px] text-slate-500">${esc(SHIFT_LABEL[sh] || sh)}</div>` : ''}</div>
+          <div class="col-span-3 sm:col-span-2 sm:order-last text-right"><span class="inline-block min-w-[2.5rem] px-2 py-0.5 rounded-lg border font-mono font-bold ${b < 0 ? 'bg-orange-500/10 text-orange-300 border-orange-500/30' : b > 0 ? 'bg-teal-500/10 text-teal-300 border-teal-500/30' : 'bg-slate-800 text-slate-400 border-slate-700'}" title="Retomou menos Deixou">${b > 0 ? '+' : ''}${b}</span></div>
+          <div class="col-span-6 sm:col-span-3 min-w-0"><div class="sm:hidden text-[10px] font-black uppercase text-slate-500 mb-0.5">Deixou</div>${bar(p.left, maxL, p.left > p.took + 2 ? 'text-orange-300' : 'text-slate-300', 'bg-orange-400')}</div>
+          <div class="col-span-6 sm:col-span-3 min-w-0"><div class="sm:hidden text-[10px] font-black uppercase text-slate-500 mb-0.5">Retomou</div>${bar(p.took, maxT, 'text-teal-300', 'bg-teal-400')}</div></div>`;
       }).join('');
-      list.innerHTML = head + `<div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="bg-slate-950 text-slate-400 uppercase tracking-wider text-[10px]"><tr><th class="px-4 py-2.5">Técnico</th><th class="px-4 py-2.5">Deixou pendente</th><th class="px-4 py-2.5">Retomou</th><th class="px-4 py-2.5 text-right" title="Retomou menos Deixou. Negativo: deixou mais do que retomou">Saldo</th></tr></thead><tbody class="divide-y divide-slate-800">${rows}</tbody></table></div>`;
+      list.innerHTML = head + `<div class="hidden sm:grid grid-cols-12 gap-x-4 px-4 py-2.5 bg-slate-950 text-slate-400 uppercase tracking-wider text-[10px] font-bold"><div class="col-span-4">Técnico</div><div class="col-span-3">Deixou pendente</div><div class="col-span-3">Retomou</div><div class="col-span-2 text-right" title="Retomou menos Deixou. Negativo: deixou mais do que retomou">Saldo</div></div><div class="divide-y divide-slate-800">${rows}</div>`;
       pager.innerHTML = vfPagerMain(people.length, st.page, st.per, 'pdrGo', 'pdrPer', [10, 20, 50]);
     }
+    // ----- Acompanhamento: pendências que já foram para um técnico (o técnico pode nem ter aberto o sistema) -----
+    const PF_STALE_H = 4;   // aberta e sem iniciar há mais que isso = “parada”
+    state.pf = { view: 'QUEUE', filter: 'OPEN', origin: 'ALL', q: '', done: 7, page: 1, per: 10, loading: false, data: null, loadedAt: 0 };
+    function pdView(v) {
+      state.pf.view = v;
+      if (v === 'FOLLOW') pfLoad(true);
+      renderAdmPending();
+    }
+    async function pfLoad(force) {
+      const f = state.pf;
+      if (f.loading || (!force && Date.now() - f.loadedAt < 20000)) return;
+      f.loading = true; if (!f.data && state.admSubTab === 'PENDING') renderAdmPending();
+      const r = await rotinaApi('GET', '/api/pending/followup?done=' + f.done);
+      f.loading = false; f.loadedAt = Date.now(); f.data = r.ok ? r.data : null; f.failed = !r.ok;
+      pfBadge();
+      if (state.admSubTab === 'PENDING') renderAdmPending();
+    }
+    // selo vermelho no menu: enviadas a técnicos que ainda não abriram o sistema (só as abertas e não iniciadas)
+    function pfBadge() {
+      const b = byId('badge-adm-follow'); if (!b) return;
+      const n = state.pf.data ? state.pf.data.items.filter(it => !it.finalizado && !it.emExecucao && !it.seenAt).length : 0;
+      b.textContent = n; b.classList.toggle('hidden', !n);
+    }
+    // o técnico abrir o sistema não muda nenhuma verificação (não dispara a atualização automática): confere de tempos em tempos
+    setInterval(() => { if (state.currentUser && state.currentUser.role === 'ADM' && !document.hidden) { pfLoad(true); vacLoad(true); } }, 45000);
+    function pfSet(k, v) { state.pf[k] = v; state.pf.page = 1; renderAdmPending(); }
+    function pfSetDone(v) { state.pf.done = parseInt(v, 10) || 0; state.pf.page = 1; pfLoad(true); }
+    function pfGo(p) { state.pf.page = Math.max(1, p || 1); renderAdmPending(); pdTop('pf-list'); }
+    // ao trocar de página com a lista longa, volta ao topo dela (senão a pessoa fica olhando o rodapé da página anterior)
+    function pdTop(id) { const el = byId(id); if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    function pfPer(n) { state.pf.per = Math.max(1, parseInt(n, 10) || 10); state.pf.page = 1; renderAdmPending(); }
+    const pfAgoTxt = (sec) => { const m = Math.max(0, Math.round(sec / 60)); return m < 1 ? 'agora há pouco' : m < 60 ? `${m} min` : m < 2880 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}` : `${Math.floor(m / 1440)} dias`; };
+    // situação de acompanhamento de uma entrega (calculada aqui para a tela inteira usar a mesma regra)
+    function pfInfo(it) {
+      const hrs = it.sentAgoSec / 3600;
+      const late = !it.finalizado && it.date < todayStr;
+      const unseen = !it.finalizado && !it.emExecucao && !it.seenAt;
+      const stale = !it.finalizado && !it.emExecucao && hrs >= PF_STALE_H;
+      const urgent = !it.finalizado && it.priority === 'URGENTE';
+      // nível de atenção: 3 = agir já (urgente que o técnico não viu / parada), 2 = olhar, 1 = ok, 0 = concluída
+      const level = it.finalizado ? 0 : (unseen && (urgent || late || hrs >= PF_STALE_H)) || (urgent && stale) ? 3 : (unseen || stale || late || urgent) ? 2 : 1;
+      return { hrs, late, unseen, stale, urgent, level };
+    }
+    function renderPendFollow() {
+      const f = state.pf, list = byId('pf-list'), pager = byId('pf-pager');
+      byId('pf-search').value !== f.q && (byId('pf-search').value = f.q);
+      byId('pf-origin').value = f.origin; byId('pf-done').value = String(f.done);
+      if (!f.data) {
+        list.innerHTML = f.loading || !f.failed ? '<div class="p-10 text-center text-slate-400 text-sm"><i class="fa-solid fa-circle-notch animate-spin mr-2"></i>Carregando…</div>'
+          : '<div class="p-10 text-center text-rose-300 text-sm">Não foi possível carregar o acompanhamento. <button type="button" onclick="pfLoad(true)" class="underline font-bold">Tentar de novo</button></div>';
+        pager.innerHTML = ''; byId('pf-kpis').innerHTML = ''; return;
+      }
+      const all = f.data.items.map(it => ({ it, i: pfInfo(it) }));
+      const open = all.filter(x => !x.it.finalizado);
+      const sentOnly = (x) => x.it.via !== 'TECNICO';
+      const cnt = {
+        OPEN: open.length,
+        UNSEEN: open.filter(x => x.i.unseen).length,
+        URGENT: open.filter(x => x.i.urgent).length,
+        STALE: open.filter(x => x.i.stale).length,
+        LATE: open.filter(x => x.i.late).length,
+        DONE: all.length - open.length
+      };
+      const card = (key, label, val, cls, hint) => `<button type="button" onclick="pfSet('filter','${key}')" class="text-left bg-slate-900 border ${f.filter === key ? 'border-brand-400 ring-2 ring-brand-500/40' : 'border-slate-800 hover:border-slate-600'} p-3.5 rounded-2xl transition">
+        <div class="text-[10px] font-black uppercase ${cls}">${label}</div><div class="text-2xl font-extrabold text-white mt-0.5">${val}</div><div class="text-[10px] text-slate-500 mt-0.5">${hint}</div></button>`;
+      byId('pf-kpis').innerHTML =
+        card('OPEN', 'Com o técnico', cnt.OPEN, 'text-sky-400', 'ainda não concluídas')
+        + card('UNSEEN', 'Técnico não viu', cnt.UNSEEN, 'text-rose-400', 'não abriu o sistema desde o envio')
+        + card('URGENT', 'Urgentes', cnt.URGENT, 'text-orange-400', 'prioridade urgente em aberto')
+        + card('STALE', `Paradas +${PF_STALE_H}h`, cnt.STALE, 'text-amber-400', 'sem iniciar há muito tempo')
+        + card('LATE', 'Prazo vencido', cnt.LATE, 'text-fuchsia-400', 'já atrasadas')
+        + card('DONE', 'Concluídas', f.done ? cnt.DONE : '—', 'text-emerald-400', f.done ? `últimos ${f.done} dias` : 'ocultas no filtro');
+
+      const q = norm(f.q || '');
+      let rows = all.filter(x => {
+        const it = x.it;
+        if (f.filter === 'DONE' ? !it.finalizado : it.finalizado) return false;
+        if (f.filter === 'UNSEEN' && !x.i.unseen) return false;
+        if (f.filter === 'URGENT' && !x.i.urgent) return false;
+        if (f.filter === 'STALE' && !x.i.stale) return false;
+        if (f.filter === 'LATE' && !x.i.late) return false;
+        if (f.origin === 'SENT' ? !sentOnly(x) : (f.origin !== 'ALL' && it.via !== f.origin && !(f.origin === 'ADM' && it.via === 'ADM_REATRIB'))) return false;
+        return !q || norm(it.pppoe).includes(q) || norm(it.tech.name).includes(q) || norm(it.lote).includes(q) || norm(it.note).includes(q);
+      });
+      const rank = { URGENTE: 0, ALTA: 1, NORMAL: 2 };
+      rows.sort((a, b) => f.filter === 'DONE' ? String(b.it.finishedAt || '').localeCompare(String(a.it.finishedAt || ''))
+        : b.i.level - a.i.level || (rank[a.it.priority] ?? 2) - (rank[b.it.priority] ?? 2) || b.it.sentAgoSec - a.it.sentAgoSec);
+
+      byId('pd-tab-n-FOLLOW').textContent = cnt.UNSEEN ? `· ${cnt.UNSEEN} sem ver` : (cnt.OPEN ? `· ${cnt.OPEN}` : '');
+      if (!rows.length) {
+        list.innerHTML = `<div class="p-10 text-center text-slate-500 text-sm"><i class="fa-solid fa-circle-check text-3xl text-emerald-700 mb-2 block"></i>${all.length ? 'Nada neste filtro.' : 'Nenhuma pendência foi enviada a técnicos ainda.'}</div>`;
+        pager.innerHTML = ''; return;
+      }
+      const pages = Math.max(1, Math.ceil(rows.length / f.per));
+      if (f.page > pages) f.page = pages;
+      const viaTxt = { SISTEMA: ['fa-robot', 'Redistribuição automática', 'text-sky-300'], ADM: ['fa-user-shield', 'Designada pelo ADM', 'text-violet-300'], ADM_REATRIB: ['fa-shuffle', 'Reatribuída pelo ADM', 'text-violet-300'], TECNICO: ['fa-hand', 'Técnico assumiu', 'text-teal-300'] };
+      const lab = (x) => `<div class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5">${x}</div>`;
+      const body = rows.slice((f.page - 1) * f.per, f.page * f.per).map(({ it, i }) => {
+        const v = viaTxt[it.via] || viaTxt.SISTEMA, t = it.tech;
+        const presence = t.online ? '<span class="text-emerald-300"><i class="fa-solid fa-circle text-[7px] mr-1"></i>online agora</span>'
+          : t.seenAgo != null ? `<span class="text-slate-400">visto há ${pfAgoTxt(t.seenAgo)}</span>`
+          : t.lastLoginAt ? `<span class="text-slate-400">último login ${esc(fmtDT(t.lastLoginAt))}</span>` : '<span class="text-rose-300">nunca acessou</span>';
+        const st = it.finalizado ? '<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold">CONCLUÍDA</span>'
+          : it.emExecucao ? '<span class="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded text-[10px] font-bold">EM ATENDIMENTO</span>'
+          : !it.seenAt ? '<span class="bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded text-[10px] font-bold">NÃO ABRIU O SISTEMA</span>'
+          : '<span class="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold">VIU, NÃO INICIOU</span>';
+        const sub = it.finalizado ? `concluída ${esc(fmtDT(it.finishedAt))}`
+          : it.emExecucao ? `iniciada ${esc(fmtDT(it.startedAt))}`
+          : it.seenAt ? `abriu ${esc(fmtDT(it.seenAt))}` : `há ${pfAgoTxt(it.sentAgoSec)} sem abrir`;
+        const bar = i.level === 3 ? 'border-rose-500 bg-rose-950/20' : i.level === 2 ? 'border-amber-500/60' : 'border-transparent';
+        const prio = it.priority === 'URGENTE' ? '<span class="text-[10px] font-bold text-rose-300">🔥 Urgente</span>' : it.priority === 'ALTA' ? '<span class="text-[10px] font-bold text-amber-300">Alta</span>' : '';
+        return `<div class="px-4 py-3.5 text-sm border-l-4 ${bar} hover:bg-slate-800/30">
+          <div class="grid grid-cols-2 lg:grid-cols-12 gap-x-4 gap-y-3 items-start">
+            <div class="col-span-2 lg:col-span-3 min-w-0">${lab('Login / conjunto')}<div class="font-mono font-bold text-brand-400 break-all">${esc(it.pppoe)}${copyBtn(it.pppoe)}</div><div class="text-[10px] text-slate-500 mt-0.5 truncate"><i class="fa-solid fa-layer-group mr-1"></i>${esc(vfLabel(it.lote || VF_NONE))}</div>
+              <div class="text-[10px] mt-0.5 ${i.late ? 'text-rose-300 font-bold' : 'text-slate-500'}">Prazo ${esc(vfDate(it.date))} · ${esc(SHIFT_LABEL[it.shift] || it.shift || '')}${i.late ? ' · ATRASADA' : ''} ${prio}</div></div>
+            <div class="col-span-1 lg:col-span-3 min-w-0">${lab('Técnico que recebeu')}<div class="text-slate-100 font-semibold break-words">${esc(t.name)}${t.blocked ? ' <span class="text-[10px] text-rose-300 font-bold">(bloqueado)</span>' : ''}</div><div class="text-[10px] text-slate-500">${esc(SHIFT_LABEL[t.shift] || t.shift || '')} · ${t.queue} na fila</div><div class="text-[10px] mt-0.5">${presence}</div></div>
+            <div class="col-span-1 lg:col-span-3 min-w-0">${lab('Enviada')}<div class="text-[11px] font-semibold ${v[2]}"><i class="fa-solid ${v[0]} mr-1"></i>${v[1]}</div><div class="text-[10px] text-slate-500">${esc(fmtDT(it.sentAt))} · há ${pfAgoTxt(it.sentAgoSec)}</div>${it.from ? `<div class="text-[10px] text-slate-500">deixada por ${esc(it.from)}</div>` : ''}</div>
+            <div class="col-span-2 lg:col-span-3 min-w-0">${lab('Situação')}${st}<div class="text-[10px] text-slate-500 mt-1">${sub}</div></div>
+          </div>
+          <div class="mt-3 flex flex-col lg:flex-row lg:items-start gap-3 lg:justify-between">
+            <div class="min-w-0 flex-1 text-xs leading-relaxed text-slate-300 whitespace-pre-wrap break-words">${it.note ? `<span class="text-[10px] font-black uppercase tracking-wider text-slate-500 mr-1">Nota:</span>${esc(it.note)}` : '<span class="text-slate-600">sem nota de quem deixou</span>'}</div>
+            <div class="flex flex-wrap gap-1.5 lg:justify-end shrink-0">
+              ${it.finalizado ? '' : `<button onclick="openReassignModal('${esc(it.id)}')" title="Passar para outro técnico (ex.: quem não está acessando)" class="px-3 py-1.5 rounded-lg bg-orange-500/15 hover:bg-orange-500/30 text-orange-300 border border-orange-500/40 text-xs font-bold transition"><i class="fa-solid fa-shuffle mr-1"></i>Reatribuir</button>`}
+              <button onclick="openAuditModal('${esc(it.id)}')" title="Linha do tempo" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold transition"><i class="fa-solid fa-clock-rotate-left mr-1"></i>Histórico</button></div>
+          </div></div>`;
+      }).join('');
+      list.innerHTML = `<div class="divide-y divide-slate-800">${body}</div>`;
+      pager.innerHTML = vfPagerMain(rows.length, f.page, f.per, 'pfGo', 'pfPer', [10, 20, 50, 100]);
+    }
     function pdSet(k, v) { state.pd[k] = v; state.pd.page = 1; renderAdmPending(); }
-    function pdGo(p) { state.pd.page = Math.max(1, p || 1); renderAdmPending(); }
-    function pdPer(n) { state.pd.per = Math.max(1, parseInt(n, 10) || 8); state.pd.page = 1; renderAdmPending(); }
+    function pdGo(p) { state.pd.page = Math.max(1, p || 1); renderAdmPending(); pdTop('pd-list'); }
+    function pdPer(n) { state.pd.per = Math.max(1, parseInt(n, 10) || 10); state.pd.page = 1; renderAdmPending(); }
     // Lê a regra da Redistribuição (limite de trocas, ligada/desligada) para mostrar “esgotaram as trocas” e o estado da rotina
     async function pdLoadCfg() {
       if (state.pd.cfgLoading) return;
@@ -3627,6 +3829,15 @@
     function renderAdmPending() {
       const list = document.getElementById('pd-list');
       if (!list) return;
+      const qn = byId('pd-tab-n-QUEUE'); if (qn) qn.textContent = state.tasks.filter(t => t.pendente && !t.finalizado).length || '';
+      const pv = state.pf.view;
+      const on = 'bg-brand-500/15 border-brand-500/60 text-white ring-2 ring-brand-500/30', off = 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-600';
+      for (const k of ['QUEUE', 'FOLLOW']) { const b = byId('pd-tab-' + k); if (b) { b.className = 'px-4 py-2 rounded-xl border text-xs font-bold transition ' + (pv === k ? on : off); b.setAttribute('aria-selected', pv === k); } }
+      byId('pd-view-queue').classList.toggle('hidden', pv !== 'QUEUE');
+      byId('pd-view-follow').classList.toggle('hidden', pv !== 'FOLLOW');
+      pfLoad(false);   // no máximo 1 consulta a cada 20 s; mantém a aba e o selo do menu em dia
+      if (state.pf.data) renderPendFollow();
+      if (pv === 'FOLLOW') { if (!state.pf.data) renderPendFollow(); return; }
       const d = state.pd, cfg = d.cfg, max = cfg ? cfg.max : 0;
       const users = new Map(state.users.map(u => [u.email, u.name]));
       const all = state.tasks.filter(t => t.pendente && !t.finalizado);
@@ -3676,23 +3887,24 @@
       }
       const pages = Math.max(1, Math.ceil(items.length / d.per));
       if (d.page > pages) d.page = pages;
+      const lab = (x) => `<div class="lg:hidden text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5">${x}</div>`;
       const rows = items.slice((d.page - 1) * d.per, d.page * d.per).map(t => {
         const alert = pendHours(t) >= PEND_ALERT_H, late = isTaskOverdue(t), tr = t.trocas || 0, esgot = max && tr >= max;
-        return `<tr class="align-top hover:bg-slate-800/30">
-          <td class="px-4 py-3"><div class="font-mono font-bold text-brand-400 break-all">${esc(t.pppoe)}${copyBtn(t.pppoe)}</div><div class="text-[10px] text-slate-500 mt-0.5 truncate max-w-[14rem]"><i class="fa-solid fa-layer-group mr-1"></i>${esc(vfLabel(t.lote || VF_NONE))}</div>${t.priority && t.priority !== 'NORMAL' ? `<span class="inline-block mt-1 text-[10px] font-bold text-amber-300">${t.priority === 'URGENTE' ? '🔥 Urgente' : 'Alta'}</span>` : ''}</td>
-          <td class="px-4 py-3 text-slate-200 whitespace-nowrap">${esc(users.get(t.techEmail) || t.techEmail)}</td>
-          <td class="px-4 py-3 whitespace-nowrap"><span class="font-bold ${alert ? 'text-rose-300' : 'text-orange-300'}"><i class="fa-regular fa-clock mr-1"></i>${pendAgo(t)}</span></td>
-          <td class="px-4 py-3 whitespace-nowrap text-slate-300">${esc(vfDate(t.date))}<div class="text-[10px] ${late ? 'text-rose-300 font-bold' : 'text-slate-500'}">${esc(SHIFT_LABEL[t.shift] || t.shift || '')}${late ? ' · ATRASADA' : ''}</div></td>
-          <td class="px-4 py-3 whitespace-nowrap text-center"><span class="inline-block min-w-[2rem] px-2 py-0.5 rounded-lg border font-mono font-bold text-xs ${esgot ? 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/40' : tr ? 'bg-sky-500/15 text-sky-300 border-sky-500/30' : 'bg-slate-800 text-slate-400 border-slate-700'}" title="${tr} troca(s) de técnico pela redistribuição">${tr}</span></td>
-          <td class="px-4 py-3 text-slate-200 text-xs leading-relaxed min-w-[14rem] max-w-md whitespace-pre-wrap break-words">${t.pendenteNota ? esc(t.pendenteNota) : '<span class="text-slate-600">sem observação</span>'}</td>
-          <td class="px-4 py-3 text-right whitespace-nowrap"><div class="inline-flex gap-1.5">
+        const who = users.get(t.techEmail) || t.techEmail;
+        const prio = t.priority === 'URGENTE' ? '<span class="inline-block mt-1 text-[10px] font-bold text-rose-300">🔥 Urgente</span>' : t.priority === 'ALTA' ? '<span class="inline-block mt-1 text-[10px] font-bold text-amber-300">Alta</span>' : '';
+        return `<div class="grid grid-cols-2 lg:grid-cols-12 gap-x-4 gap-y-3 items-start px-4 py-3.5 text-sm hover:bg-slate-800/30 border-l-4 ${esgot ? 'border-fuchsia-500/70' : alert ? 'border-rose-500/70' : 'border-transparent'}">
+          <div class="col-span-2 lg:col-span-3 min-w-0">${lab('Login / conjunto')}<div class="font-mono font-bold text-brand-400 break-all">${esc(t.pppoe)}${copyBtn(t.pppoe)}</div><div class="text-[10px] text-slate-500 mt-0.5 truncate"><i class="fa-solid fa-layer-group mr-1"></i>${esc(vfLabel(t.lote || VF_NONE))}</div>${prio}</div>
+          <div class="col-span-1 lg:col-span-2 min-w-0">${lab('Deixada por')}<div class="text-slate-200 font-semibold break-words">${esc(who)}</div><div class="mt-0.5 font-bold text-xs ${alert ? 'text-rose-300' : 'text-orange-300'}"><i class="fa-regular fa-clock mr-1"></i>há ${pendAgo(t)}</div></div>
+          <div class="col-span-1 lg:col-span-2 min-w-0">${lab('Prazo e trocas')}<div class="text-slate-300">${esc(vfDate(t.date))}</div><div class="text-[10px] ${late ? 'text-rose-300 font-bold' : 'text-slate-500'}">${esc(SHIFT_LABEL[t.shift] || t.shift || '')}${late ? ' · ATRASADA' : ''}</div>
+            <span class="inline-block mt-1 px-2 py-0.5 rounded-lg border font-mono font-bold text-[11px] ${esgot ? 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/40' : tr ? 'bg-sky-500/15 text-sky-300 border-sky-500/30' : 'bg-slate-800 text-slate-400 border-slate-700'}" title="${tr} troca(s) de técnico pela redistribuição">${tr} troca${tr === 1 ? '' : 's'}</span></div>
+          <div class="col-span-2 lg:col-span-3 min-w-0">${lab('O que falta fazer')}<div class="text-slate-200 text-xs leading-relaxed whitespace-pre-wrap break-words">${t.pendenteNota ? esc(t.pendenteNota) : '<span class="text-slate-600">sem observação</span>'}</div></div>
+          <div class="col-span-2 lg:col-span-2 flex flex-wrap gap-1.5 lg:justify-end">
             <button onclick="pdOpenAssign('${esc(t.id)}')" title="Escolher um técnico ou usar a redistribuição automática" class="px-3 py-1.5 rounded-lg bg-orange-500/15 hover:bg-orange-500/30 text-orange-300 border border-orange-500/40 text-xs font-bold transition"><i class="fa-solid fa-user-check mr-1"></i>Designar</button>
-            <button onclick="openAuditModal('${esc(t.id)}')" title="Linha do tempo: tudo o que já foi feito" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold transition"><i class="fa-solid fa-clock-rotate-left mr-1"></i>Histórico</button></div></td></tr>`;
+            <button onclick="openAuditModal('${esc(t.id)}')" title="Linha do tempo: tudo o que já foi feito" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold transition"><i class="fa-solid fa-clock-rotate-left mr-1"></i>Histórico</button></div></div>`;
       }).join('');
-      list.innerHTML = `<div class="overflow-x-auto"><table class="w-full text-left text-sm">
-        <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider text-[10px]"><tr><th class="px-4 py-2.5">Login / conjunto</th><th class="px-4 py-2.5">Deixada por</th><th class="px-4 py-2.5">Aguardando</th><th class="px-4 py-2.5">Prazo</th><th class="px-4 py-2.5 text-center" title="Quantas vezes a redistribuição já trocou de técnico">Trocas</th><th class="px-4 py-2.5">O que falta fazer (nota do técnico)</th><th class="px-4 py-2.5"></th></tr></thead>
-        <tbody class="divide-y divide-slate-800">${rows}</tbody></table></div>`;
-      if (pager) pager.innerHTML = vfPagerMain(items.length, d.page, d.per, 'pdGo', 'pdPer', [8, 15, 30, 50]);
+      list.innerHTML = `<div class="hidden lg:grid grid-cols-12 gap-x-4 px-4 py-2.5 bg-slate-950 text-slate-400 uppercase tracking-wider text-[10px] font-bold border-l-4 border-transparent"><div class="col-span-3">Login / conjunto</div><div class="col-span-2">Deixada por</div><div class="col-span-2" title="Quantas vezes a redistribuição já trocou de técnico">Prazo e trocas</div><div class="col-span-3">O que falta fazer (nota do técnico)</div><div class="col-span-2"></div></div>
+        <div class="divide-y divide-slate-800">${rows}</div>`;
+      if (pager) pager.innerHTML = vfPagerMain(items.length, d.page, d.per, 'pdGo', 'pdPer', [10, 20, 50, 100]);
     }
 
     function vfMode(mode) {
@@ -6296,11 +6508,12 @@
           <div>
             <span class="font-bold text-white text-sm">${esc(u.name)}</span>
             <span class="ml-2 text-[10px] px-2 py-0.5 rounded font-bold ${u.role === 'ADM' ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40' : 'bg-slate-800 text-slate-300'}">${u.role}</span>
-            <span class="ml-1 text-[10px] px-2 py-0.5 rounded font-bold bg-slate-900 border border-slate-800 text-amber-400">${u.shift}</span>
+            <span class="ml-1 text-[10px] px-2 py-0.5 rounded font-bold bg-slate-900 border border-slate-800 text-amber-400">${u.shift}</span>${u.role === 'TEC' ? vacUserBadge(u.id) : ''}
             <div class="text-slate-400 font-mono mt-0.5">${esc(u.email)}</div>
           </div>
 
           <div class="flex items-center gap-2">
+            ${u.role === 'TEC' ? `<button onclick="vacOpen('${esc(u.id)}')" title="Registrar férias deste técnico" class="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 font-bold border border-amber-500/40 transition flex items-center gap-1"><i class="fa-solid fa-umbrella-beach"></i> Férias</button>` : ''}
             ${u.role === 'TEC' ? `<button onclick="openTechProfile('${esc(u.id)}')" class="px-3 py-1.5 rounded-xl bg-brand-500/15 hover:bg-brand-500/30 text-brand-300 font-bold border border-brand-500/40 transition flex items-center gap-1"><i class="fa-solid fa-id-badge"></i> Ver perfil</button>` : ''}
             <button onclick="openModalUserProfile('${u.id}')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-brand-400 font-bold border border-slate-700 transition flex items-center gap-1">
               <i class="fa-solid fa-user-pen"></i> Editar / Redefinir Senha
@@ -6624,7 +6837,7 @@
     async function redistLoad() {
       const r = await sysApi('GET', 'admin/redistribution');
       if (!r.ok) { showToast((r.data && r.data.error) || 'Não foi possível carregar a redistribuição.', 'error'); return; }
-      redistData = r.data; redistDirty = false; redistRender();
+      redistData = r.data; redistData.at = Date.now(); redistDirty = false; redistRender();
     }
     function redistAge(iso) {
       const ms = srvNow() - naiveMs(iso);
@@ -6636,11 +6849,13 @@
       const d = redistData; if (!d) return;
       const c = d.config, st = d.status;
       const card = (ico, cls, label, big, sub) => `<div class="rounded-2xl border border-slate-800 bg-slate-950 p-3"><div class="text-[10px] font-black uppercase tracking-wider text-slate-500"><i class="fa-solid ${ico} ${cls} mr-1"></i>${label}</div><div class="text-2xl font-extrabold text-white leading-tight mt-1">${big}</div><div class="text-[10px] text-slate-500 mt-0.5">${sub}</div></div>`;
-      const last = st.last ? `${sysFmt(String(st.last.at).replace(' ', 'T'))} · ${st.last.n}` : 'nenhuma ainda';
+      const eg = st.engine;
+      const last = eg ? `há ${redistAge(eg.at).replace(/^há /, '') || 'instantes'}` : 'nenhum ainda';
       byId('rd-status').innerHTML =
         card('fa-inbox', 'text-orange-400', 'Fila central', st.pool, st.pool ? ('mais antiga ' + redistAge(st.oldest) + (st.stuck ? ` · ${st.stuck} precisam de você` : '')) : 'vazia')
         + card('fa-shuffle', 'text-sky-400', 'Distribuídas hoje', st.today, 'pelo sistema')
-        + card('fa-clock-rotate-left', 'text-slate-400', 'Última execução', `<span class="text-sm">${esc(last)}</span>`, st.last ? (st.last.by === 'auto' ? 'automática' : 'manual') : '&nbsp;');
+        + card('fa-clock-rotate-left', 'text-slate-400', 'Último ciclo do motor', `<span class="text-sm">${esc(last)}</span>`, eg ? (eg.by === 'auto' ? 'automático' : 'manual') + (st.last ? ` · última movimentação ${esc(redistAge(st.last.at))}` : '') : '&nbsp;');
+      redistRenderLive();
       // Sem o agendador do servidor (cron/worker), a rotina só roda com alguém usando o sistema: avisa o ADM em vez de falhar em silêncio
       const sc = byId('rd-sched'), noSched = !!(c.on && st.sched && !st.sched.active);
       if (sc) {
@@ -6657,6 +6872,37 @@
         </label>`).join('');
       redistSync();
     }
+    // ----- ao vivo: o motor está rodando? o que ele fez? o que está impedindo? -----
+    const RD_STATE = { ok: 'distribuiu', partial_full: 'distribuiu parte (técnicos no limite)', waiting: 'pendências aguardando a espera', empty: 'fila vazia', no_eligible: 'sem técnico elegível', all_full: 'todos os técnicos no limite', stuck: 'trocas esgotadas', no_shift: 'nenhum turno habilitado', error: 'erro' };
+    const RD_EV = { REDISTRIBUIDA: ['fa-shuffle', 'text-sky-300', 'Redistribuição automática'], DESIGNADA: ['fa-user-check', 'text-orange-300', 'Designada pelo ADM'], FERIAS_DEVOLVIDA: ['fa-umbrella-beach', 'text-amber-300', 'Devolvida à fila (técnico de férias)'] };
+    function redistRenderLive() {
+      const box = byId('rd-live'), d = redistData; if (!box || !d) return;
+      const st = d.status, eg = st.engine, on = !!d.config.on;
+      const age = eg ? eg.ageSec + Math.max(0, Math.round((Date.now() - (redistData.at || Date.now())) / 1000)) : null;
+      const alive = on && eg && age <= 180;
+      const banner = !on ? ['border-slate-700 bg-slate-950', 'bg-slate-500', 'text-slate-300', 'Redistribuição desligada', 'As pendências ficam na fila central até alguém assumir ou você designar.']
+        : !eg ? ['border-amber-500/40 bg-amber-500/10', 'bg-amber-400', 'text-amber-200', 'Aguardando o primeiro ciclo', 'O motor roda a cada minuto. Se esta mensagem não sumir, o agendador do servidor não está disparando.']
+        : alive ? ['border-emerald-500/40 bg-emerald-500/10', 'bg-emerald-400 animate-pulse', 'text-emerald-200', 'Motor em funcionamento', `Último ciclo há ${redistAge(eg.at).replace(/^há /, '')} (${eg.by === 'auto' ? 'automático' : 'manual'}): ${esc(RD_STATE[eg.state] || eg.state)}${eg.message ? ' · ' + esc(eg.message) : ''}`]
+        : ['border-rose-500/50 bg-rose-500/10', 'bg-rose-400', 'text-rose-200', 'O motor parou de rodar', `Último ciclo ${redistAge(eg.at)}. Confira o agendador do servidor ou abra o sistema para ele rodar.`];
+      const ico = { ok: ['fa-circle-check', 'text-emerald-400'], warn: ['fa-triangle-exclamation', 'text-amber-400'], bad: ['fa-circle-xmark', 'text-rose-400'], info: ['fa-circle-info', 'text-sky-400'] };
+      const checks = (st.checks || []).map((c) => { const i = ico[c.level] || ico.info; return `<li class="flex items-start gap-2.5 min-w-0"><i class="fa-solid ${i[0]} ${i[1]} mt-0.5 shrink-0"></i><div class="min-w-0"><div class="font-bold text-slate-100 break-words">${esc(c.title)}</div>${c.detail ? `<div class="text-[11px] text-slate-400 leading-relaxed break-words">${esc(c.detail)}</div>` : ''}</div></li>`; }).join('');
+      const rec = (st.recent || []).map((r) => { const e = RD_EV[r.event] || RD_EV.REDISTRIBUIDA; return `<li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0"><span class="text-[10px] font-mono text-slate-500 shrink-0">${esc(sysFmt(String(r.at).replace(' ', 'T')))}</span><span class="font-mono text-slate-100 break-all">${esc(r.pppoe)}</span><span class="${e[1]} text-[11px]"><i class="fa-solid ${e[0]} mr-1"></i>${e[2]}${r.to ? ' → <b class="text-slate-100">' + esc(r.to) + '</b>' : ''}</span></li>`; }).join('');
+      const runs = (st.runs || []).map((r) => `<li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0"><span class="text-[10px] font-mono text-slate-500 shrink-0">${esc(sysFmt(String(r.at).replace(' ', 'T')))}</span><span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">${r.source === 'auto' ? 'auto' : 'manual'}</span><span class="${r.moved ? 'text-emerald-300 font-bold' : 'text-slate-300'}">${r.moved ? r.moved + ' distribuída(s)' : esc(RD_STATE[r.state] || r.state)}</span><span class="text-[11px] text-slate-500 break-words">${esc(r.message || '')}</span></li>`).join('');
+      box.innerHTML = `
+        <div class="rounded-2xl border ${banner[0]} px-4 py-3 flex items-start gap-3"><span class="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${banner[1]}"></span><div class="min-w-0"><div class="font-bold ${banner[2]}">${banner[3]}</div><div class="text-[11px] ${banner[2]} opacity-90 leading-relaxed break-words">${banner[4]}</div></div></div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-950 p-4"><div class="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2"><i class="fa-solid fa-stethoscope text-sky-400 mr-1"></i>Está tudo certo? Diagnóstico agora</div><ul class="space-y-2.5">${checks}</ul></div>
+        <details class="rounded-2xl border border-slate-800 bg-slate-950 p-4 group"><summary class="cursor-pointer text-[11px] font-black uppercase tracking-wider text-slate-400 select-none"><i class="fa-solid fa-list-ul text-sky-400 mr-1"></i>O que o sistema fez há pouco <span class="text-slate-600 normal-case font-normal">(movimentações e ciclos do motor)</span></summary>
+          <div class="mt-3 grid grid-cols-1 gap-4">
+            <div><div class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Últimas movimentações</div>${rec ? `<ul class="space-y-1.5">${rec}</ul>` : '<div class="text-[11px] text-slate-600">Nenhuma ainda.</div>'}</div>
+            <div><div class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Ciclos do motor com pendência para olhar</div>${runs ? `<ul class="space-y-1.5">${runs}</ul>` : '<div class="text-[11px] text-slate-600">Nenhum ciclo registrado ainda.</div>'}</div>
+          </div></details>`;
+    }
+    // a tela da Redistribuição se atualiza sozinha, para o ADM ver as movimentações acontecendo (sem apagar o que está sendo digitado)
+    setInterval(() => {
+      const sec = byId('adm-section-redist');
+      if (!sec || sec.classList.contains('hidden') || document.hidden || redistDirty || redistBusy || !state.currentUser || state.currentUser.role !== 'ADM') return;
+      redistLoad();
+    }, 15000);
     // Liga/desliga os botões e atualiza os textos
     function redistSync() {
       const d = redistData; if (!d) return;
@@ -6834,6 +7080,8 @@
     // m: { online, seenAgo (s), running, runningPppoe, pending }
     function presenceInfo(m) {
       const idle = m.pending > 0;
+      if (m.vacation && m.vacation.active) return { key: 'VAC', dot: 'bg-amber-400 text-amber-400', ring: false, txt: 'text-amber-300', border: 'border-amber-500/40',
+        label: `<i class="fa-solid fa-umbrella-beach"></i> De férias até ${esc(vfDate(m.vacation.to))}` };
       if (m.online && (m.running > 0 || m.runningPppoe)) return { key: 'RUN', dot: 'bg-indigo-400 text-indigo-400', ring: true, txt: 'text-indigo-300', border: 'border-indigo-500/40',
         label: `<span class="eq"><i></i><i></i><i></i></span> Em atendimento${m.runningPppoe ? ' · <span class="font-mono">' + esc(m.runningPppoe) + '</span>' : ''}` };
       if (m.online && idle) return { key: 'IDLE', dot: 'bg-amber-400 text-amber-400', ring: true, txt: 'text-amber-300', border: 'border-amber-500/30',
@@ -6966,9 +7214,9 @@
       const grid = byId('team-grid');
       if (!teamState.loaded) { grid.innerHTML = '<div class="skeleton h-52"></div><div class="skeleton h-52 hidden md:block"></div><div class="skeleton h-52 hidden lg:block"></div>'; return; }
       const q = norm(teamState.q);
-      const rank = { RUN: 0, IDLE: 1, ON: 2, OFF: 3 };
+      const rank = { RUN: 0, IDLE: 1, ON: 2, OFF: 3, VAC: 4 };
       const items = teamState.list.map((m) => ({ m, pi: presenceInfo(m) }))
-        .filter(({ m, pi }) => (!teamState.onlyOnline || pi.key !== 'OFF') && (!q || norm(m.name).includes(q)))
+        .filter(({ m, pi }) => (!teamState.onlyOnline || (pi.key !== 'OFF' && pi.key !== 'VAC')) && (!q || norm(m.name).includes(q)))
         .sort((a, b) => rank[a.pi.key] - rank[b.pi.key] || a.m.name.localeCompare(b.m.name));
       if (!items.length) { grid.innerHTML = '<div class="md:col-span-2 lg:col-span-3 p-10 text-center text-slate-500 bg-slate-900/50 border border-slate-800 rounded-3xl">Ninguém encontrado com esses filtros.</div>'; return; }
       grid.innerHTML = items.map(({ m, pi }) => `
@@ -6978,7 +7226,7 @@
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-1.5 flex-wrap"><h4 class="font-extrabold text-white truncate">${esc(m.name)}</h4>${m.me ? '<span class="chip">Você</span>' : ''}</div>
               <div class="text-[11px] font-bold mt-0.5 flex items-center gap-1.5 ${pi.txt} truncate">${pi.label}</div>
-              <div class="text-[10px] text-slate-500 mt-0.5">Turno ${esc(m.shift)}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Turno ${esc(m.shift)}</div>${vacTag(m)}
             </div>
           </div>
           <p class="text-xs leading-relaxed clamp3 min-h-[3.6rem] ${m.bio ? 'text-slate-300' : 'text-slate-600 italic'}">${m.bio ? esc(m.bio) : 'Ainda sem bio.'}</p>
@@ -7014,16 +7262,19 @@
       bar.innerHTML =
         card('TEAM', 'fa-signal', 'Equipe', 'Presença, último acesso e perfis', online == null ? total : `${online}<span class="text-xs text-slate-500">/${total}</span>`, false)
         + card('APPROVALS', 'fa-user-check', 'Aprovações', pend ? `${pend} solicitaç${pend === 1 ? 'ão aguardando' : 'ões aguardando'} você` : 'Nenhuma solicitação pendente', pend, pend > 0)
-        + card('MANAGE', 'fa-users-gear', 'Gerenciar usuários', 'Cadastrar, editar, turnos e senhas', act, false);
+        + card('MANAGE', 'fa-users-gear', 'Gerenciar usuários', 'Cadastrar, editar, turnos e senhas', act, false)
+        + (() => { const vs = vacSummary(); return card('VACATION', 'fa-umbrella-beach', 'Férias', vs.requests ? `${vs.requests} solicitaç${vs.requests === 1 ? 'ão aguardando' : 'ões aguardando'} você` : (vs.active ? `${vs.active} de férias agora` : 'Registrar e aprovar'), vs.requests || vs.active || 0, vs.requests > 0); })();
     }
     function usersSetView(v) {
       state.usersView = v;
       document.getElementById('users-pane-team').classList.toggle('hidden', v !== 'TEAM');
       document.getElementById('users-pane-approvals').classList.toggle('hidden', v !== 'APPROVALS');
       document.getElementById('users-pane-manage').classList.toggle('hidden', v !== 'MANAGE');
+      document.getElementById('users-pane-vacation').classList.toggle('hidden', v !== 'VACATION');
       renderUsersModeBar();
       if (v === 'TEAM') { renderAdmTeam(); teamPulse(); }
       else if (v === 'APPROVALS') renderApprovalsList();
+      else if (v === 'VACATION') { vacRenderAdm(); vacLoad(true); }
       else renderUsersManagementList();
     }
 
@@ -7040,9 +7291,9 @@
       const online = teamState.list.filter((m) => m.online).length;
       byId('adm-team-count').textContent = `${online} online de ${teamState.list.length} técnico${teamState.list.length === 1 ? '' : 's'}.`;
       const q = norm(teamState.q);
-      const rank = { RUN: 0, IDLE: 1, ON: 2, OFF: 3 };
+      const rank = { RUN: 0, IDLE: 1, ON: 2, OFF: 3, VAC: 4 };
       const items = teamState.list.map((m) => ({ m, pi: presenceInfo(m) }))
-        .filter(({ m, pi }) => (!teamState.onlyOnline || pi.key !== 'OFF') && (!q || norm(m.name).includes(q) || norm(m.email || '').includes(q)))
+        .filter(({ m, pi }) => (!teamState.onlyOnline || (pi.key !== 'OFF' && pi.key !== 'VAC')) && (!q || norm(m.name).includes(q) || norm(m.email || '').includes(q)))
         .sort((a, b) => rank[a.pi.key] - rank[b.pi.key] || a.m.name.localeCompare(b.m.name));
       if (!items.length) { grid.innerHTML = '<div class="md:col-span-2 xl:col-span-3 p-8 text-center text-slate-500 bg-slate-950 border border-slate-800 rounded-2xl text-sm">Ninguém encontrado com esses filtros.</div>'; return; }
       const fmtAbs = (sec) => new Date(Date.now() - sec * 1000).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -7053,7 +7304,7 @@
             <div class="min-w-0 flex-1">
               <h4 class="font-extrabold text-white truncate">${esc(m.name)}</h4>
               <div class="text-[11px] font-bold mt-0.5 flex items-center gap-1.5 ${pi.txt} truncate">${pi.label}</div>
-              <div class="text-[10px] text-slate-500 mt-0.5 truncate">Turno ${esc(m.shift)}${m.email ? ' · ' + esc(m.email) : ''}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5 truncate">Turno ${esc(m.shift)}${m.email ? ' · ' + esc(m.email) : ''}</div>${vacTag(m)}
             </div>
           </div>
           <div class="text-[11px] text-slate-400 space-y-0.5">
@@ -7068,6 +7319,171 @@
         </div>`).join('');
     }
 
+    // ======================= FÉRIAS =======================
+    // Quem está de férias (período aprovado que inclui hoje) não recebe verificações: o servidor faz valer (redistribuição, designação,
+    // reatribuição e "assumir"). Aqui só se registra, solicita, aprova e mostra. O ADM vê todas; o técnico vê só as dele.
+    state.vac = { items: [], loaded: false, loading: false, at: 0, hist: 15, ctx: null };
+    const vacAdd = (ymd, n) => { const d = new Date(ymd + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
+    const vacDays = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000) + 1;
+    const vacRange = (v) => `${vfDate(v.from)} a ${vfDate(v.to)}`;
+    const VAC_BADGE = { ATIVA: ['amber', 'DE FÉRIAS'], AGENDADA: ['sky', 'AGENDADA'], SOLICITADA: ['orange', 'AGUARDANDO'], CONCLUIDA: ['slate', 'CONCLUÍDA'], RECUSADA: ['rose', 'RECUSADA'], CANCELADA: ['slate', 'CANCELADA'], ENCERRADA: ['slate', 'ENCERRADA'] };
+    function vacBadge(v) { const b = VAC_BADGE[v.phase] || VAC_BADGE[v.status] || ['slate', v.status]; return `<span class="px-2 py-0.5 rounded text-[10px] font-bold border bg-${b[0]}-500/15 text-${b[0]}-300 border-${b[0]}-500/30">${b[1]}</span>`; }
+    function vacSummary() { const it = state.vac.items; return { requests: it.filter(v => v.status === 'SOLICITADA').length, active: it.filter(v => v.phase === 'ATIVA').length }; }
+    function vacOf(uid) { const l = state.vac.items.filter(v => v.userId === uid); return l.find(v => v.phase === 'ATIVA') || l.find(v => v.phase === 'AGENDADA') || l.find(v => v.status === 'SOLICITADA') || null; }
+    function vacUserBadge(uid) {
+      const v = vacOf(uid); if (!v) return '';
+      const t = v.phase === 'ATIVA' ? ['amber', `🌴 Férias até ${vfDate(v.to)}`] : v.phase === 'AGENDADA' ? ['sky', `Férias ${vacRange(v)}`] : ['orange', 'Solicitou férias'];
+      return `<span class="ml-1 text-[10px] px-2 py-0.5 rounded font-bold border bg-${t[0]}-500/15 text-${t[0]}-300 border-${t[0]}-500/40">${esc(t[1])}</span>`;
+    }
+    // férias que ainda vão começar (as em andamento já aparecem no status de presença)
+    function vacTag(m) {
+      if (!m || !m.vacation || m.vacation.active) return '';
+      return `<div class="text-[10px] text-sky-300 mt-0.5"><i class="fa-solid fa-umbrella-beach mr-1"></i>Férias de ${esc(vfDate(m.vacation.from))} a ${esc(vfDate(m.vacation.to))}</div>`;
+    }
+    async function vacLoad(force) {
+      const v = state.vac;
+      if (v.loading || (!force && Date.now() - v.at < 20000)) return;
+      v.loading = true;
+      const r = await rotinaApi('GET', '/api/vacations');
+      v.loading = false; v.at = Date.now();
+      if (r.ok && r.data) { v.items = r.data.items || []; v.loaded = true; }
+      vacAfter();
+    }
+    function vacAfter() {
+      if (!state.currentUser) return;
+      if (state.currentUser.role === 'ADM') {
+        renderUsersModeBar();   // também atualiza o menu lateral
+        if (state.admSubTab === 'APPROVALS' && state.usersView === 'VACATION') vacRenderAdm();
+        if (state.admSubTab === 'APPROVALS' && state.usersView === 'MANAGE') renderUsersManagementList();
+      }
+      if (profileState.data && profileState.data.user.me && !byId('modal-tech-profile').classList.contains('hidden')) renderProfile(true);
+    }
+    function vacCardAdm(v, actions) {
+      const days = vacDays(v.from, v.to);
+      const border = v.status === 'SOLICITADA' ? 'border-orange-500/50' : v.phase === 'ATIVA' ? 'border-amber-500/50' : 'border-slate-800';
+      const who = v.byTech ? 'solicitada pelo técnico' : `registrada por ${esc(v.requestedBy || 'administrador')}`;
+      let info = '';
+      if (v.status === 'SOLICITADA') info = v.openNow ? `${v.openNow} verificação(ões) em aberto com ele hoje` : 'sem verificações em aberto';
+      else if (v.status === 'RECUSADA') info = `recusada por ${esc(v.decidedBy || 'administrador')}${v.decisionNote ? ': ' + esc(v.decisionNote) : ''}`;
+      else if (v.status === 'APROVADA' && v.phase === 'ATIVA') info = v.returnedN ? `${v.returnedN} verificação(ões) devolvida(s) à fila central ao começar` : (v.returnOpen ? 'nada precisou voltar para a fila central' : 'verificações abertas mantidas com ele');
+      const btn = (cls, ico, txt, fn) => `<button type="button" onclick="${fn}" class="px-3 py-1.5 rounded-lg border text-xs font-bold transition ${cls}"><i class="fa-solid ${ico} mr-1"></i>${txt}</button>`;
+      let act = '';
+      if (actions) {
+        if (v.status === 'SOLICITADA') act = btn('bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40', 'fa-check', 'Aprovar', `vacDecide('${esc(v.id)}', true)`) + btn('bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border-rose-500/40', 'fa-xmark', 'Recusar', `vacDecide('${esc(v.id)}', false)`);
+        else if (v.phase === 'ATIVA') act = btn('bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border-amber-500/40', 'fa-flag-checkered', 'Encerrar férias', `vacCancel('${esc(v.id)}', true)`);
+        else if (v.phase === 'AGENDADA') act = btn('bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700', 'fa-ban', 'Cancelar', `vacCancel('${esc(v.id)}', false)`);
+      }
+      return `<div class="bg-slate-950 border ${border} rounded-2xl p-4 flex flex-col sm:flex-row sm:items-start gap-3 justify-between min-w-0">
+        <div class="min-w-0 space-y-1 text-xs">
+          <div class="flex flex-wrap items-center gap-2"><span class="font-bold text-white text-sm break-words">${esc(v.user)}</span>${vacBadge(v)}<span class="text-[10px] text-slate-500">${esc(SHIFT_LABEL[v.shift] || v.shift || '')}</span></div>
+          <div class="text-slate-300"><i class="fa-regular fa-calendar mr-1 text-slate-500"></i>${esc(vacRange(v))} · ${days} dia${days === 1 ? '' : 's'}</div>
+          ${v.note ? `<div class="text-slate-300 break-words">“${esc(v.note)}”</div>` : ''}
+          <div class="text-[10px] text-slate-500">${who}${info ? ' · ' + info : ''}</div>
+        </div>
+        ${act ? `<div class="flex flex-wrap gap-1.5 shrink-0">${act}</div>` : ''}</div>`;
+    }
+    function vacRenderAdm() {
+      const box = byId('vac-adm-list'); if (!box) return;
+      const v = state.vac;
+      if (!v.loaded) { box.innerHTML = '<div class="skeleton h-24"></div>'; return; }
+      const by = (f) => v.items.filter(f);
+      const req = by(x => x.status === 'SOLICITADA'), act = by(x => x.phase === 'ATIVA'), up = by(x => x.phase === 'AGENDADA');
+      const hist = by(x => !['SOLICITADA', 'ATIVA', 'AGENDADA'].includes(x.phase));
+      const sec = (title, ico, cls, arr, empty, actions) => `<section><h4 class="text-xs font-black uppercase tracking-wider ${cls} mb-2 flex items-center gap-2"><i class="fa-solid ${ico}"></i>${title} <span class="text-slate-500 font-mono">${arr.length}</span></h4>
+        ${arr.length ? `<div class="grid grid-cols-1 xl:grid-cols-2 gap-3">${arr.map(x => vacCardAdm(x, actions)).join('')}</div>` : `<div class="text-xs text-slate-500 border border-dashed border-slate-800 rounded-2xl p-4">${empty}</div>`}</section>`;
+      box.innerHTML = sec('Aguardando sua decisão', 'fa-inbox', 'text-orange-300', req, 'Nenhuma solicitação no momento.', true)
+        + sec('De férias agora', 'fa-umbrella-beach', 'text-amber-300', act, 'Ninguém de férias hoje.', true)
+        + sec('Agendadas', 'fa-calendar-days', 'text-sky-300', up, 'Nenhuma férias agendada.', true)
+        + (hist.length ? `<section><h4 class="text-xs font-black uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left"></i>Histórico <span class="text-slate-500 font-mono">${hist.length}</span></h4>
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-3">${hist.slice(0, v.hist).map(x => vacCardAdm(x, false)).join('')}</div>
+            ${hist.length > v.hist ? `<button type="button" onclick="state.vac.hist += 15; vacRenderAdm()" class="mt-3 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold">Mostrar mais (${hist.length - v.hist})</button>` : ''}</section>` : '');
+    }
+    async function vacCall(path, body, okMsg) {
+      const r = await rotinaApi('POST', path, body);
+      if (!r.ok) { showToast((r.data && r.data.error) || 'Não foi possível concluir.', 'error'); await vacLoad(true); return false; }
+      const n = r.data && r.data.returned;
+      showToast(okMsg + (n ? ` ${n} verificação(ões) voltaram para a fila central.` : ''), 'success');
+      await vacLoad(true);
+      return true;
+    }
+    async function vacDecide(id, ok) {
+      const v = state.vac.items.find(x => x.id === id); if (!v) return;
+      if (ok) {
+        const html = `<p><b class="text-slate-100">${esc(v.user)}</b>: ${esc(vacRange(v))}. Nesse período ele <b class="text-slate-100">não recebe verificações</b>.</p>`
+          + (v.openNow ? `<p>Ele tem <b class="text-slate-100">${v.openNow}</b> verificação(ões) em aberto. As que não foram iniciadas podem voltar para a fila central, para a redistribuição passar a outro técnico.</p>` : '');
+        if (v.openNow) { if (await askConfirm({ tone: 'primary', title: 'Aprovar férias?', html, ok: 'Aprovar e devolver as abertas', extra: { label: 'Aprovar sem devolver', fn: () => vacCall('/api/vacations/decide', { id, decision: 'APROVAR', returnOpen: false }, 'Férias aprovadas.') } })) vacCall('/api/vacations/decide', { id, decision: 'APROVAR', returnOpen: true }, 'Férias aprovadas.'); }
+        else if (await askConfirm({ tone: 'primary', title: 'Aprovar férias?', html, ok: 'Aprovar' })) vacCall('/api/vacations/decide', { id, decision: 'APROVAR', returnOpen: true }, 'Férias aprovadas.');
+      } else {
+        const html = `<p><b class="text-slate-100">${esc(v.user)}</b>: ${esc(vacRange(v))}.</p><label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-2 mb-1" for="vac-rej-note">Motivo (opcional, o técnico vê)</label><input id="vac-rej-note" type="text" maxlength="300" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-rose-500">`;
+        if (await askConfirm({ tone: 'danger', icon: 'fa-xmark', title: 'Recusar solicitação?', html, ok: 'Recusar' })) vacCall('/api/vacations/decide', { id, decision: 'RECUSAR', decisionNote: (byId('vac-rej-note') || {}).value || '' }, 'Solicitação recusada.');
+      }
+    }
+    async function vacCancel(id, running) {
+      const v = state.vac.items.find(x => x.id === id); if (!v) return;
+      const adm = state.currentUser.role === 'ADM';
+      const html = running ? `<p><b class="text-slate-100">${esc(v.user)}</b> volta a receber verificações agora.</p>` : `<p>${adm ? `<b class="text-slate-100">${esc(v.user)}</b>: ` : ''}${esc(vacRange(v))}.</p>`;
+      if (await askConfirm({ tone: 'warn', title: running ? 'Encerrar as férias agora?' : (v.status === 'SOLICITADA' ? 'Cancelar a solicitação?' : 'Cancelar as férias?'), html, ok: running ? 'Encerrar' : 'Cancelar férias', cancel: 'Voltar' })) {
+        await vacCall('/api/vacations/cancel', { id }, running ? 'Férias encerradas.' : 'Cancelada.');
+      }
+    }
+    // registrar (ADM) ou solicitar (técnico)
+    function vacOpen(userId) {
+      const adm = state.currentUser.role === 'ADM';
+      state.vac.ctx = { adm, busy: false };
+      byId('vac-title').textContent = adm ? 'Registrar férias' : 'Solicitar férias';
+      byId('vac-sub').textContent = adm ? 'Já fica aprovada. No período o técnico não recebe verificações.' : 'Sua solicitação vai para o administrador. Você só sai das verificações depois de aprovada.';
+      byId('vac-tech-wrap').classList.toggle('hidden', !adm);
+      byId('vac-ret-wrap').classList.toggle('hidden', !adm);
+      byId('vac-ok-txt').textContent = adm ? 'Registrar férias' : 'Enviar solicitação';
+      if (adm) {
+        const techs = state.users.filter(u => u.role === 'TEC' && u.status === 'APROVADO').sort((a, b) => a.name.localeCompare(b.name));
+        byId('vac-tech').innerHTML = techs.map(u => `<option value="${esc(u.id)}" ${u.id === userId ? 'selected' : ''}>${esc(u.name)}</option>`).join('');
+        byId('vac-tech').onchange = vacHint;
+      }
+      byId('vac-from').value = todayStr; byId('vac-to').value = vacAdd(todayStr, 29); byId('vac-note').value = ''; byId('vac-ret').checked = true;
+      vacHint(); openModal('modal-vacation');
+    }
+    function vacHint() {
+      const a = byId('vac-from').value, b = byId('vac-to').value, h = byId('vac-hint'), ok = byId('vac-ok');
+      let msg, bad = true;
+      if (!a || !b) msg = 'Escolha o primeiro e o último dia.';
+      else if (b < a) msg = 'O último dia não pode ser antes do primeiro.';
+      else if (a < todayStr) msg = 'O primeiro dia não pode ser uma data que já passou.';
+      else if (vacDays(a, b) > 90) msg = 'No máximo 90 dias por período.';
+      else { bad = false; const n = vacDays(a, b); msg = `${n} dia${n === 1 ? '' : 's'}${a === todayStr ? ' · começa hoje' : ''}`; }
+      h.className = 'text-[11px] ' + (bad ? 'text-rose-300' : 'text-slate-400'); h.textContent = msg;
+      ok.disabled = bad; ok.classList.toggle('opacity-50', bad); ok.classList.toggle('cursor-not-allowed', bad);
+      if (state.vac.ctx && state.vac.ctx.adm) {
+        const u = state.users.find(x => x.id === byId('vac-tech').value);
+        const n = u ? state.tasks.filter(t => t.techEmail === u.email && !t.finalizado && !t.pendente && !t.emExecucao).length : 0;
+        byId('vac-open-n').textContent = n ? `(${n} em aberto agora)` : '(nenhuma em aberto agora)';
+      }
+    }
+    async function vacSubmit() {
+      const c = state.vac.ctx; if (!c || c.busy) return;
+      const body = { from: byId('vac-from').value, to: byId('vac-to').value, note: byId('vac-note').value.trim() };
+      if (c.adm) { body.userId = byId('vac-tech').value; body.returnOpen = byId('vac-ret').checked; if (!body.userId) { showToast('Escolha o técnico.', 'warning'); return; } }
+      c.busy = true; byId('vac-ok').disabled = true;
+      const ok = await vacCall(c.adm ? '/api/vacations/create' : '/api/vacations/request', body, c.adm ? 'Férias registradas.' : 'Solicitação enviada ao administrador.');
+      c.busy = false; byId('vac-ok').disabled = false;
+      if (ok) closeModal('modal-vacation');
+    }
+    // bloco "Minhas férias" no perfil do próprio técnico
+    function vacMineHtml() {
+      const v = state.vac;
+      const open = v.items.filter(x => (x.status === 'SOLICITADA' || x.status === 'APROVADA') && x.to >= todayStr);
+      const past = v.items.filter(x => !open.includes(x)).slice(0, 3);
+      const line = (x) => `<div class="flex flex-wrap items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs min-w-0">
+        ${vacBadge(x)}<span class="text-slate-200">${esc(vacRange(x))}</span><span class="text-slate-500">${vacDays(x.from, x.to)} dia(s)</span>
+        ${x.status === 'RECUSADA' && x.decisionNote ? `<span class="text-rose-300 break-words">“${esc(x.decisionNote)}”</span>` : ''}
+        ${(x.status === 'SOLICITADA' || x.phase === 'AGENDADA') ? `<button type="button" onclick="vacCancel('${esc(x.id)}', false)" class="ml-auto px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-600/30 text-slate-300 hover:text-rose-200 border border-slate-700 text-[11px] font-bold">Cancelar</button>` : ''}</div>`;
+      return `<div class="py-4 border-b border-slate-800">
+        <div class="flex items-center justify-between gap-2 mb-2"><span class="text-[11px] font-black uppercase tracking-wider text-slate-400"><i class="fa-solid fa-umbrella-beach text-amber-400 mr-1"></i>Minhas férias</span>
+          <button type="button" onclick="vacOpen()" class="text-[11px] font-bold text-amber-300 hover:text-white"><i class="fa-solid fa-plus mr-1"></i>Solicitar férias</button></div>
+        ${!v.loaded ? '<div class="text-xs text-slate-500">Carregando…</div>' : (open.length || past.length) ? `<div class="space-y-1.5">${open.map(line).join('')}${past.map(line).join('')}</div>` : '<div class="text-xs text-slate-500">Nenhuma solicitação. Quando entrar de férias você não recebe verificações e a equipe vê o seu status.</div>'}
+      </div>`;
+    }
+
     // ----- perfil -----
     let profileState = { id: null, data: null, period: 'd30', editing: false, view: 'overview', seq: 0 };
 
@@ -7077,6 +7493,7 @@
       const seq = profileState.seq;
       renderProfile();
       openModal('modal-tech-profile');
+      if (state.currentUser && state.currentUser.id === id) vacLoad(true);
       const r = await rotinaApi('GET', '/api/profile?id=' + encodeURIComponent(id));
       if (seq !== profileState.seq) return;
       if (!r.ok) { closeModal('modal-tech-profile'); showToast((r.data && r.data.error) || 'Não foi possível abrir o perfil.', 'error'); return; }
@@ -7104,6 +7521,7 @@
       if (keepEdit && (P.editing || typingInList)) { const pi = presenceInfo(d.user); /* só atualiza a presença sem perder o que está sendo digitado */
         const el = byId('tp-presence'); if (el) { el.className = 'text-xs font-bold mt-1 flex items-center gap-1.5 ' + pi.txt; el.innerHTML = pi.label; } return; }
       const u = d.user, st = d.stats[P.period];
+      if (u.me && !state.vac.loaded && !state.vac.loading) vacLoad(false);
       const pi = presenceInfo(u);
       const ad = d.admin;   // só o ADM recebe
       const seenAbs = !u.online && u.seenAgo != null ? new Date(Date.now() - u.seenAgo * 1000).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
@@ -7131,6 +7549,7 @@
           <div class="min-w-0">
             <h3 class="text-xl font-black text-white truncate">${esc(u.name)}${u.me ? ' <span class="chip align-middle">Você</span>' : ''}</h3>
             <div id="tp-presence" class="text-xs font-bold mt-1 flex items-center gap-1.5 ${pi.txt}">${pi.label}</div>
+            ${vacTag(u)}
             <div class="text-[11px] text-slate-500 mt-1">Turno ${esc(u.shift)} · na equipe desde ${esc(vfDate(u.memberSince))}${u.email ? ' · ' + esc(u.email) : ''}</div>
             ${!ad && seenAbs ? `<div class="text-[11px] text-slate-500 mt-0.5">Visto pela última vez em ${esc(seenAbs)}</div>` : ''}
             ${u.me ? `<div class="flex flex-wrap gap-2 mt-2 text-[11px] font-bold">
@@ -7163,6 +7582,7 @@
             </div>` : `<p class="text-sm leading-relaxed whitespace-pre-wrap break-words ${u.bio ? 'text-slate-200' : 'text-slate-600 italic'}">${u.bio ? esc(u.bio) : (u.me ? 'Você ainda não escreveu sua bio. Clique em "Editar bio".' : 'Este técnico ainda não escreveu uma bio.')}</p>`}
         </div>
 
+        ${u.me ? vacMineHtml() : ''}
         <div class="pt-4 space-y-4">
           <div class="flex items-center justify-between">
             <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">Indicadores</span>
@@ -7369,6 +7789,7 @@
       RETOMADA:    { ico: 'fa-hand-holding-hand',   cls: 'bg-teal-500/20 text-teal-300 border-teal-500/40',         label: 'Pendência retomada' },
       DESIGNADA:     { ico: 'fa-user-check',          cls: 'bg-orange-500/20 text-orange-300 border-orange-500/40',   label: 'Designada pelo ADM' },
       REDISTRIBUIDA: { ico: 'fa-shuffle',           cls: 'bg-sky-500/20 text-sky-300 border-sky-500/40',            label: 'Redistribuída automaticamente' },
+      FERIAS_DEVOLVIDA: { ico: 'fa-umbrella-beach', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40',      label: 'Devolvida à fila central (técnico de férias)' },
       INICIADA:    { ico: 'fa-play',                cls: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',   label: 'Atendimento iniciado' },
       CHECKLIST:   { ico: 'fa-list-check',          cls: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',         label: 'Checklist atualizado' },
       ACAO:        { ico: 'fa-screwdriver-wrench',  cls: 'bg-violet-500/20 text-violet-300 border-violet-500/40',   label: 'Procedimento alterado' },
@@ -7425,6 +7846,8 @@
           break;
         case 'PENDENTE':
           html = d.nota ? `<div class="mt-0.5 rounded-xl bg-slate-900 border border-orange-500/30 p-2.5 text-[12px] text-slate-200 leading-relaxed whitespace-pre-wrap break-words">${esc(d.nota)}</div>` : ''; break;
+        case 'FERIAS_DEVOLVIDA':
+          html = `<div class="text-[12px] text-slate-300">O técnico entrou de férias${d.ferias_ate ? ' (até ' + esc(vfDate(d.ferias_ate)) + ')' : ''}: voltou para a fila central sem ele ter iniciado.</div>`; break;
         case 'DESIGNADA':
           html = `<div class="text-[12px] text-slate-300">Da fila central para <b class="text-slate-100">${esc(userName(d.para))}</b> · escolha do ADM</div>` + audPrevObs(d); break;
         case 'REDISTRIBUIDA':   // ação do sistema: mostra só o destino (sem apontar quem deixou a pendência)
@@ -7727,6 +8150,6 @@
     }, true);
 
   </script>
-  <script src="api-adapter.js?v=1.8.16"></script>   <!-- ?v= força o navegador a buscar a versão nova -->
+  <script src="api-adapter.js?v=1.9.0"></script>   <!-- ?v= força o navegador a buscar a versão nova -->
 </body>
 </html>

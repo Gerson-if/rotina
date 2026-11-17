@@ -227,7 +227,7 @@ final class Sync
                 // ---- caches ---- (ADM trava a tabela de usuários: serializa mudanças de acesso; TEC só lê)
                 $usersById = [];
                 $usersByEmail = [];
-                foreach (Db::all('SELECT id, email, role, shift, status FROM users' . ($isAdm ? ' FOR UPDATE' : '')) as $r) {
+                foreach (Db::all('SELECT id, name, email, role, shift, status FROM users' . ($isAdm ? ' FOR UPDATE' : '')) as $r) {
                     $usersById[$r['id']] = $r;
                     $usersByEmail[$r['email']] = $r['id'];
                 }
@@ -362,6 +362,9 @@ final class Sync
 
                         $cur = $existing[$t['id']] ?? null;
 
+                        // Técnico de férias não recebe verificação nova (nem reaberta): o ADM escolhe outro.
+                        if (!$cur && $isAdm && ($until = Vacation::activeUntil($tech['id']))) throw Vacation::refuse($tech['name'], $until);
+
                         // ---------- criação ----------
                         if (!$cur) {
                             // Reabertura: o técnico (dono da anterior) ou o ADM reabre uma verificação CONCLUÍDA, o que gera uma
@@ -433,6 +436,14 @@ final class Sync
                             if ($forbidden) throw new HttpError(403, 'Campos não permitidos para técnico: ' . implode(', ', $forbidden), 'FORBIDDEN');
                             if (isset($changes['techEmail']) && !$takeover) throw new HttpError(403, 'Técnicos só podem assumir para si mesmos.', 'FORBIDDEN');
                         }
+                        // Retomar a própria pendência estando de férias também não: ela fica na fila central para a redistribuição.
+                        if (!$isAdm && $resumingPending && ($until = Vacation::activeUntil($actor['id']))) {
+                            throw new HttpError(409, 'Você está de férias até ' . Vacation::br($until) . ' e não recebe verificações.', 'CONFLICT');
+                        }
+                        // Passar a verificação a quem está de férias (reatribuição do ADM) ou assumir estando de férias: não pode.
+                        if (isset($changes['techEmail']) && ($until = Vacation::activeUntil($tech['id']))) {
+                            throw $takeover ? new HttpError(409, 'Você está de férias até ' . Vacation::br($until) . ' e não recebe verificações.', 'CONFLICT') : Vacation::refuse($tech['name'], $until);
+                        }
 
                         // Quem RECEBE uma pendência (assume) começa com as observações em branco: o que existia antes não vai para o campo
                         // dele (o aviso "estava pendente" cuida do contexto). O texto anterior fica guardado na auditoria (RETOMADA.obs_anterior).
@@ -449,8 +460,10 @@ final class Sync
                         // Passagem de bastão: se OUTRO técnico assume uma pendência, a nota de quem deixou vira "entrega" e acompanha a
                         // verificação. Vem ANTES das demais atribuições (o MySQL aplica da esquerda para a direita: aqui ainda valem o
                         // dono e a nota antigos). Se o técnico deixa pendente de novo, a entrega antiga sai (vale a nota nova).
-                        if ($resumingPending && $takeover) { $sets[] = 'handoff_note = pending_note'; $sets[] = 'handoff_from = tech_id'; $sets[] = 'handoff_at = NOW()'; }
-                        elseif ($leavingPending) { $sets[] = 'handoff_note = NULL'; $sets[] = 'handoff_from = NULL'; $sets[] = 'handoff_at = NULL'; }
+                        if ($resumingPending && $takeover) { $sets[] = 'handoff_note = pending_note'; $sets[] = 'handoff_from = tech_id'; $sets[] = 'handoff_at = NOW()'; $sets[] = 'handoff_seen_at = NOW()'; }   // assumiu sozinho: já sabe
+                        elseif ($leavingPending) { $sets[] = 'handoff_note = NULL'; $sets[] = 'handoff_from = NULL'; $sets[] = 'handoff_at = NULL'; $sets[] = 'handoff_seen_at = NULL'; }
+                        // O ADM passou a verificação a outro técnico: quem recebeu ainda não viu (acompanhamento das pendências).
+                        elseif (isset($changes['techEmail'])) { $sets[] = $takeover ? 'handoff_seen_at = NOW()' : 'handoff_seen_at = NULL'; }
                         // Tag "Reatribuída por X": o ADM passou a verificação a OUTRO técnico (só o ADM chega aqui com techEmail alterado e sem ser "assumir").
                         // Sai quando ela troca de dono de outra forma (assumida), é deixada pendente ou é concluída.
                         $reassignedNow = isset($changes['techEmail']) && !$takeover && !$t['finalizado'];

@@ -82,7 +82,7 @@ final class UserDeletion
                 }
                 Db::q('UPDATE verifications
                           SET tech_id = ?, shift = ?, pending_contact = 0, pending_since = NULL, pending_note = NULL,
-                              handoff_note = NULL, handoff_from = NULL, handoff_at = NULL,
+                              handoff_note = NULL, handoff_from = NULL, handoff_at = NULL, handoff_seen_at = NULL,
                               em_execucao = 0, started_at = NULL, version = version + 1
                         WHERE tech_id = ? AND finalizado = 0', [$dest['id'], $dest['shift'], $u['id']]);
                 foreach (array_chunk($open, 200) as $part) {

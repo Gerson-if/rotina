@@ -211,6 +211,12 @@ Métodos que alteram dados exigem **POST** e o cabeçalho anti-CSRF; a sessão v
 | `verification/search` | GET | logado | Busca de verificações concluídas (*Soluções da equipe*) |
 | `pppoe/check` | POST | ADM | Histórico de uma lista de PPPoE antes de atribuir |
 | `pending/stats` | GET | ADM | Ranking *quem deixa / quem retoma* (`days`) |
+| `vacations` | GET | logado | Férias: o ADM vê todas (`?userId=` filtra); o técnico vê só as dele. Traz `phase` (ATIVA/AGENDADA/…) e `requests` (aguardando decisão) |
+| `vacations/request` | POST | TEC | O técnico solicita (`from`, `to`, `note`); nasce SOLICITADA |
+| `vacations/create` | POST | ADM | Registra férias já aprovadas (`userId`, `from`, `to`, `note`, `returnOpen`) |
+| `vacations/decide` | POST | ADM | `decision`: APROVAR ou RECUSAR (`decisionNote`, `returnOpen`) |
+| `vacations/cancel` | POST | dono/ADM | Cancela antes de começar (técnico ou ADM); o ADM também encerra as em andamento |
+| `pending/followup` | GET | ADM | Acompanhamento das pendências **já entregues a técnicos**: se o técnico abriu o sistema (`seenAt`), iniciou, concluiu, quem enviou (`via`) e presença do técnico (`done` = dias de concluídas, 0 a 90) |
 | `audit` | GET | ADM | Auditoria geral |
 | `export/verifications.csv` | GET | ADM | Exporta verificações (`from`, `to`; padrão últimos 30 dias). CSV com `;` e BOM para abrir no Excel; protegido contra injeção de fórmula. A coluna *Reaberturas do PPPoE* traz `reopens`. *Não há botão na tela: acesse pela URL* |
 | `branding/login` · `branding/login-file` | GET | público | Plano de fundo da tela de login |

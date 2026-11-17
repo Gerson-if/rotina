@@ -56,6 +56,15 @@ final class Jobs
         // Só age se o ADM ligou em Redistribuição. Não depende de ninguém estar logado quando o disparo vem do cron/worker.
         self::safe('redist', static function () use ($log) { if (Redistribution::due()) Redistribution::tick($log); });
 
+        // férias: quem entrou de férias devolve à fila central o que não começou. Roda mesmo com a redistribuição desligada (barato: 1x por minuto).
+        if ($now - (int) self::state('vac_ts') >= 55) {
+            self::safe('vacation', static function () use ($now, $log) {
+                self::setState('vac_ts', (string) $now);
+                $n = Vacation::sweep();
+                if ($n > 0) $log("férias: $n verificação(ões) devolvida(s) à fila central");
+            });
+        }
+
         // agendador do servidor: se ninguém o disparou (ainda não instalado), tenta instalar sozinho, no máximo 1x por dia.
         // Só em requisições web: no CLI (cron/worker) o agendador, por definição, já está rodando.
         if (PHP_SAPI !== 'cli') self::safe('sched', static function () { $m = Scheduler::ensure(); if ($m !== '') Util::log('sched', $m); });

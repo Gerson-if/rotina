@@ -174,9 +174,21 @@ Ordem: **Urgente → Alta → Normal** e, dentro de cada uma, a que espera há m
 
 ### Quem pode receber
 
-Técnico **aprovado**, **não bloqueado**, de um **turno marcado** (ou "Geral") e com a fila **abaixo do limite por técnico**
+Técnico **aprovado**, **não bloqueado**, **fora de férias**, de um **turno marcado** (ou "Geral") e com a fila **abaixo do limite por técnico**
 (padrão 15). A "carga" de uma pessoa é o número de verificações abertas dela que não estão pendentes.
 **Presença online não conta**: o que decide é turno, limite e carga.
+
+**Férias.** Quem está de férias (período aprovado que inclui hoje) nunca é elegível, em nenhum caminho (rotina, designação manual,
+atribuição automática de novas demandas, reatribuição e "assumir"). As verificações abertas e não iniciadas dele voltam à fila central
+na entrada das férias (`Vacation::sweep`, 1x por período, evento `FERIAS_DEVOLVIDA`) e, enquanto o dono estiver de férias, a **espera
+mínima é dispensada** para elas. Detalhes em `app/Vacation.php`.
+
+### Como sabemos o que o motor fez (diagnóstico)
+
+Cada ciclo grava o resultado em `app_state.redist_run` (sinal de vida: `at`, `st`, `mv`, `pool`) e, **só quando algo mudou** (moveu ou mudou
+o motivo/tamanho da fila), uma linha em `redistribution_runs` (30 dias). Estados: `ok`, `partial_full`, `waiting` (todas na espera),
+`empty`, `stuck` (trocas esgotadas), `no_eligible`, `all_full`, `no_shift`, `error`. `admin/redistribution` devolve `status.engine`,
+`breakdown` (fila: total/prontas/aguardando/esgotadas), `techs` (podem receber/no limite/férias/fora de turno/travados), `recent`, `runs` e `checks`.
 
 ### Como escolhe (a regra justa)
 

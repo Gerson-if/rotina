@@ -28,6 +28,12 @@ final class Api
                 case 'audit':          self::audit(); return;
                 case 'team':           self::team(); return;
                 case 'pending/stats':  self::pendingStats(); return;
+                case 'pending/followup': self::pendingFollowup(); return;
+                case 'vacations':         self::vacationsList(); return;
+                case 'vacations/request': self::needPost($method); $u = Auth::require(); Http::json(Vacation::request($u, Http::body(4 * 1024), Util::clientIp())); return;
+                case 'vacations/create':  self::needPost($method); $u = self::admin();  Http::json(Vacation::create($u, Http::body(4 * 1024), Util::clientIp())); return;
+                case 'vacations/decide':  self::needPost($method); $u = self::admin();  Http::json(Vacation::decide($u, Http::body(4 * 1024), Util::clientIp())); return;
+                case 'vacations/cancel':  self::needPost($method); $u = Auth::require(); Http::json(Vacation::cancel($u, Http::body(4 * 1024), Util::clientIp())); return;
                 case 'analytics':      self::analytics(); return;
                 // plano de fundo do login: info e arquivo são PÚBLICOS (a tela de login ainda não tem sessão)
                 //   (é a primeira coisa que a tela de login pede: serve de gatilho para a redistribuição mesmo sem ninguém logado)
@@ -239,6 +245,12 @@ final class Api
         $user = Auth::require();
         $since = Db::today(-(int) Config::get('bootstrap_days'));
         $isAdm = $user['role'] === 'ADM';
+        // Acompanhamento das pendências entregues: o técnico carregou a própria fila, então já abriu o sistema depois de receber.
+        // Não mexe na versão da verificação (não dispara conflito nem atualização nos outros painéis).
+        if (!$isAdm) {
+            try { Db::q('UPDATE verifications SET handoff_seen_at = NOW() WHERE tech_id = ? AND handoff_at IS NOT NULL AND handoff_seen_at IS NULL AND finalizado = 0 AND pending_contact = 0', [$user['id']]); }
+            catch (\Throwable $e) { Util::log('handoff_seen', $e->getMessage()); }   // ex.: migration 018 ainda não aplicada
+        }
 
         $tasks = Db::all('SELECT ' . Mappers::VERIF_SELECT . ' WHERE v.finalizado = 0 OR v.due_date >= ? ORDER BY v.created_at DESC, v.id', [$since]);
         $users = Db::all('SELECT id, name, email, role, shift, status, avatar_v FROM users ' . ($isAdm ? '' : "WHERE status = 'APROVADO' ") . 'ORDER BY name');
@@ -304,9 +316,11 @@ final class Api
                                 (SELECT v.pppoe FROM verifications v WHERE v.tech_id = u.id AND v.finalizado = 0 AND v.em_execucao = 1 ORDER BY v.started_at DESC LIMIT 1) AS running_pppoe,
                                 (SELECT COUNT(*) FROM verifications v WHERE v.tech_id = u.id AND v.finalizado = 1 AND DATE(v.finished_at) = CURDATE()) AS done_today
                            FROM users u WHERE u.role = 'TEC' AND u.status = 'APROVADO' ORDER BY u.name");
-        $list = array_map(static function ($r) use ($me, $isAdm) {
+        $vac = Vacation::forTeam();
+        $list = array_map(static function ($r) use ($me, $isAdm, $vac) {
             $ago = $r['seen_ago'] === null ? null : max(0, (int) $r['seen_ago']);
             return [
+                'vacation' => $vac[$r['id']] ?? null,
                 'id' => $r['id'], 'name' => $r['name'], 'shift' => $r['shift'], 'bio' => $r['bio'] ?? '', 'avatarV' => (int) $r['avatar_v'],
                 'online' => $ago !== null && $ago <= self::ONLINE_SECONDS, 'seenAgo' => $ago,
                 'pending' => (int) $r['pending'], 'running' => (int) $r['running'], 'runningPppoe' => $r['running_pppoe'],
@@ -376,6 +390,7 @@ final class Api
                 'email' => $me['role'] === 'ADM' ? $u['email'] : null,
                 'online' => $ago !== null && $ago <= self::ONLINE_SECONDS, 'seenAgo' => $ago,
                 'runningPppoe' => $running['pppoe'] ?? null, 'pending' => (int) $queue['n'], 'me' => $u['id'] === $me['id'],
+                'vacation' => Vacation::forTeam()[$id] ?? null,
             ],
             'stats' => ['d30' => self::techStats($id, 30), 'all' => self::techStats($id, null)],
             'daily' => $daily, 'tmaMaxHours' => self::TMA_MAX_SECONDS / 3600,
@@ -560,6 +575,62 @@ final class Api
                 'left' => (int) $r['left_n'], 'took' => (int) $r['took_n'],
             ], $rows),
         ]);
+    }
+
+    /** Férias: o ADM vê todas (ou de um técnico, ?userId=); o técnico vê só as dele. */
+    private static function vacationsList(): void
+    {
+        $me = Auth::require();
+        $isAdm = $me['role'] === 'ADM';
+        $uid = $isAdm ? (isset($_GET['userId']) && preg_match(Util::ID_RE, (string) $_GET['userId']) ? (string) $_GET['userId'] : null) : $me['id'];
+        $items = Vacation::list($uid);
+        Http::json(['items' => $items, 'requests' => $isAdm ? count(array_filter($items, static fn($v) => $v['status'] === 'SOLICITADA')) : 0]);
+    }
+
+    /**
+     * ADM: acompanhamento das pendências que JÁ SAÍRAM da fila central e estão com um técnico (redistribuição automática,
+     * designação do ADM, reatribuição ou técnico que assumiu). Mostra se o técnico chegou a abrir o sistema depois de receber,
+     * se já iniciou e há quanto tempo está parada, para o ADM agir nas urgentes sem depender de o técnico entrar.
+     *   ?done=7  inclui também as concluídas nos últimos N dias (0 a 90; padrão 7)
+     */
+    private static function pendingFollowup(): void
+    {
+        self::admin();
+        $doneDays = max(0, min(90, (int) ($_GET['done'] ?? 7)));
+        $rows = Db::all("SELECT v.id, v.pppoe, v.priority, v.due_date, v.shift, v.em_execucao, v.started_at, v.finalizado, v.finished_at,
+                                v.handoff_at, v.handoff_seen_at, v.handoff_note, v.redist_count, bt.name AS batch_name,
+                                hu.name AS from_name, u.id AS tech_id, u.name AS tech_name, u.shift AS tech_shift, u.status AS tech_status,
+                                u.last_login_at, TIMESTAMPDIFF(SECOND, u.last_seen_at, NOW()) AS seen_ago,
+                                le.event AS via, le.created_at AS sent_at, TIMESTAMPDIFF(SECOND, COALESCE(le.created_at, v.handoff_at), NOW()) AS sent_ago
+                           FROM verifications v
+                           JOIN users u ON u.id = v.tech_id
+                           JOIN batches bt ON bt.id = v.batch_id
+                           LEFT JOIN users hu ON hu.id = v.handoff_from
+                           LEFT JOIN verification_events le ON le.id = (SELECT MAX(e.id) FROM verification_events e
+                                WHERE e.verification_id = v.id AND e.event IN ('RETOMADA', 'REDISTRIBUIDA', 'DESIGNADA', 'REATRIBUIDA'))
+                          WHERE v.handoff_at IS NOT NULL AND v.pending_contact = 0
+                            AND (v.finalizado = 0 OR ($doneDays > 0 AND v.finished_at >= DATE_SUB(NOW(), INTERVAL $doneDays DAY)))
+                          ORDER BY v.finalizado, FIELD(v.priority, 'URGENTE', 'ALTA', 'NORMAL'), COALESCE(le.created_at, v.handoff_at) LIMIT 1000");
+        $queue = [];
+        $ids = array_values(array_unique(array_column($rows, 'tech_id')));
+        if ($ids) {
+            foreach (Db::all('SELECT tech_id, COUNT(*) AS n FROM verifications WHERE finalizado = 0 AND pending_contact = 0 AND tech_id IN (' . Db::marks($ids) . ') GROUP BY tech_id', $ids) as $r) $queue[$r['tech_id']] = (int) $r['n'];
+        }
+        $viaMap = ['REDISTRIBUIDA' => 'SISTEMA', 'DESIGNADA' => 'ADM', 'REATRIBUIDA' => 'ADM_REATRIB', 'RETOMADA' => 'TECNICO'];
+        $items = array_map(static function ($r) use ($queue, $viaMap) {
+            $ago = $r['seen_ago'] === null ? null : max(0, (int) $r['seen_ago']);
+            $sent = $r['sent_at'] ?? $r['handoff_at'];
+            return [
+                'id' => $r['id'], 'pppoe' => $r['pppoe'], 'lote' => $r['batch_name'], 'priority' => $r['priority'], 'date' => $r['due_date'], 'shift' => $r['shift'],
+                'finalizado' => (int) $r['finalizado'] === 1, 'emExecucao' => (int) $r['em_execucao'] === 1,
+                'startedAt' => $r['started_at'], 'finishedAt' => $r['finished_at'],
+                'sentAt' => $sent, 'sentAgoSec' => max(0, (int) $r['sent_ago']), 'via' => $viaMap[(string) $r['via']] ?? 'SISTEMA', 'trocas' => (int) $r['redist_count'],
+                'seenAt' => $r['handoff_seen_at'], 'from' => $r['from_name'] ?? '', 'note' => (string) ($r['handoff_note'] ?? ''),
+                'tech' => ['id' => $r['tech_id'], 'name' => $r['tech_name'], 'shift' => $r['tech_shift'], 'blocked' => $r['tech_status'] !== 'APROVADO',
+                           'online' => $ago !== null && $ago <= self::ONLINE_SECONDS, 'seenAgo' => $ago, 'lastLoginAt' => $r['last_login_at'], 'queue' => $queue[$r['tech_id']] ?? 0],
+            ];
+        }, $rows);
+        Http::json(['items' => $items, 'doneDays' => $doneDays, 'now' => (string) Db::val('SELECT NOW()')]);
     }
 
     /**

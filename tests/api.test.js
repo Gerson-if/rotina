@@ -144,6 +144,131 @@ test('pendente de contato: exige observação, sai da fila, outro técnico assum
   assert.equal((await tec1.req('GET', '/api/pending/stats')).status, 403);
 });
 
+test('acompanhamento das pendências entregues: ADM vê se o técnico abriu o sistema, se iniciou e se concluiu', async () => {
+  const t = mkTask({ n: 73, tech: T1, pppoe: `follow73.${RUN}@telecom`, });
+  t.priority = 'URGENTE';
+  assert.equal((await adm.sync({ tasks: { upsert: [t] } })).status, 200);
+  const mine = (await tec1.boot()).body.tasks.find(x => x.id === t.id);
+  assert.equal((await tec1.sync({ tasks: { upsert: [{ ...mine, pendente: true, pendenteNota: 'Cliente pediu retorno urgente' }] } })).status, 200);
+  const find = async () => (await adm.req('GET', '/api/pending/followup')).body.items.find(x => x.id === t.id);
+  // na fila central ainda não é "entregue": não aparece no acompanhamento
+  assert.equal(await find(), undefined);
+  // ADM designa ao técnico 2 (que não abriu o sistema desde então)
+  const des = await adm.req('POST', '/api/admin/pending/assign', { id: t.id, techId: U2 });
+  assert.equal(des.status, 200);
+  let it = await find();
+  assert.ok(it, 'entrou no acompanhamento');
+  assert.equal(it.tech.id, U2);
+  assert.equal(it.via, 'ADM');
+  assert.equal(it.priority, 'URGENTE');
+  assert.equal(it.seenAt, null, 'técnico ainda não viu');
+  assert.equal(it.emExecucao, false);
+  assert.equal(it.note, 'Cliente pediu retorno urgente');
+  // o técnico abre o sistema (carrega a fila): fica registrado que viu, sem alterar a verificação
+  const seen = (await tec2.boot()).body.tasks.find(x => x.id === t.id);
+  assert.ok(seen);
+  it = await find();
+  assert.ok(it.seenAt, 'viu depois de abrir');
+  assert.equal(it.emExecucao, false);
+  // inicia e conclui
+  const r = await tec2.sync({ tasks: { upsert: [{ ...seen, emExecucao: true }] } });
+  assert.equal(r.status, 200);
+  assert.equal((await find()).emExecucao, true);
+  const r2 = await tec2.sync({ tasks: { upsert: [{ ...r.body.tasks.find(x => x.id === t.id), emExecucao: false, finalizado: true, resolvido: true, actionId: 'NONE' }] } });
+  assert.equal(r2.status, 200);
+  assert.equal((await find()).finalizado, true);
+  // concluídas somem se o filtro for 0 dias; só o ADM acessa
+  const noDone = (await adm.req('GET', '/api/pending/followup?done=0')).body.items;
+  assert.ok(!noDone.some(x => x.id === t.id));
+  assert.equal((await tec2.req('GET', '/api/pending/followup')).status, 403);
+});
+
+const addDays = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+
+test('férias: técnico solicita, ADM aprova, quem está de férias sai das verificações e a equipe vê', async () => {
+  // técnicos só deste teste (turno NOITE): a redistribuição aqui não mexe na fila dos técnicos dos outros testes
+  const va = new Client(), vb = new Client();
+  const TA = `vac.a.${RUN}@teste.com`, TB = `vac.b.${RUN}@teste.com`, UA = 'usr-va' + RUN, UB = 'usr-vb' + RUN;
+  assert.equal((await adm.sync({ users: { upsert: [{ ...mkUser(UA, TA, 'Ferias A'), shift: 'NOITE' }, { ...mkUser(UB, TB, 'Ferias B'), shift: 'NOITE' }] } })).status, 200);
+  assert.equal((await va.login(TA, 'Senha12345')).status, 200);
+  assert.equal((await vb.login(TB, 'Senha12345')).status, 200);
+  const redist = (cfg) => adm.req('POST', '/api/admin/redistribution', cfg);
+  // uma verificação aberta (não iniciada) do técnico 1, que vai entrar de férias
+  const t = mkTask({ n: 74, tech: TA, pppoe: `ferias74.${RUN}@telecom` });
+  assert.equal((await adm.sync({ tasks: { upsert: [t] } })).status, 200);
+
+  // validações
+  const bad = (b) => va.req('POST', '/api/vacations/request', b);
+  assert.equal((await bad({ from: addDays(today, -1), to: today })).status, 400, 'início no passado');
+  assert.equal((await bad({ from: addDays(today, 3), to: addDays(today, 1) })).status, 400, 'fim antes do início');
+  assert.equal((await bad({ from: today, to: addDays(today, 200) })).status, 400, 'período grande demais');
+  assert.equal((await adm.req('POST', '/api/vacations/request', { from: today, to: today })).status, 403, 'ADM registra por vacations/create');
+
+  // técnico solicita; só o próprio e o ADM enxergam
+  const rq = await va.req('POST', '/api/vacations/request', { from: today, to: addDays(today, 2), note: 'Viagem em família' });
+  assert.equal(rq.status, 200);
+  assert.equal(rq.body.status, 'SOLICITADA');
+  assert.equal((await va.req('POST', '/api/vacations/request', { from: addDays(today, 1), to: addDays(today, 5) })).status, 409, 'sobreposição');
+  const admList = (await adm.req('GET', '/api/vacations')).body;
+  assert.ok(admList.items.some(v => v.id === rq.body.id && v.status === 'SOLICITADA' && v.byTech));
+  assert.ok(admList.requests >= 1);
+  assert.ok(!(await vb.req('GET', '/api/vacations')).body.items.some(v => v.id === rq.body.id));
+  assert.equal((await va.req('POST', '/api/vacations/decide', { id: rq.body.id, decision: 'APROVAR' })).status, 403, 'técnico não decide');
+  // solicitada ainda não afeta ninguém: dá para enviar trabalho
+  assert.equal((await adm.req('POST', '/api/admin/redistribution/suggest', { n: 1 })).status, 200);
+
+  // ADM aprova: começa hoje, então as abertas não iniciadas voltam para a fila central
+  const ok = await adm.req('POST', '/api/vacations/decide', { id: rq.body.id, decision: 'APROVAR', returnOpen: true });
+  assert.equal(ok.status, 200);
+  assert.ok(ok.body.returned >= 1, 'devolveu as abertas');
+  assert.equal((await adm.req('POST', '/api/vacations/decide', { id: rq.body.id, decision: 'RECUSAR' })).status, 409, 'já decidida');
+  const back = (await adm.boot()).body.tasks.find(x => x.id === t.id);
+  assert.equal(back.pendente, true);
+  assert.match(back.pendenteNota, /férias/i);
+
+  // quem está de férias não recebe de jeito nenhum
+  const mk2 = mkTask({ n: 75, tech: TA, pppoe: `ferias75.${RUN}@telecom` });
+  const c = await adm.sync({ tasks: { upsert: [mk2] } });
+  assert.equal(c.status, 409);
+  assert.match(c.body.error, /férias/i);
+  assert.equal((await adm.req('POST', '/api/admin/pending/assign', { id: t.id, techId: UA })).status, 409, 'designação manual');
+  const tk = await va.sync({ tasks: { upsert: [{ ...back, techEmail: TA, pendente: false, pendenteNota: '' }] } });
+  assert.ok([409, 403].includes(tk.status), 'não assume estando de férias');
+
+  // a equipe vê (técnico 2 olhando o técnico 1)
+  const team = (await vb.req('GET', '/api/team')).body.team.find(m => m.id === UA);
+  assert.equal(team.vacation.active, true);
+  assert.equal(team.vacation.to, addDays(today, 2));
+  assert.equal((await vb.req('GET', '/api/profile?id=' + UA)).body.user.vacation.active, true);
+
+  // redistribuição: ignora quem está de férias, a espera mínima não vale e o diagnóstico explica
+  assert.equal((await redist({ on: 1, how: 'L', wait: 720, cap: 50, max: 10, en: ['NOITE'] })).status, 200);
+  const run = await adm.req('POST', '/api/admin/redistribution/run', { dry: false });
+  assert.equal(run.status, 200);
+  const moved = (await adm.boot()).body.tasks.find(x => x.id === t.id);
+  assert.equal(moved.pendente, false, 'saiu da fila central sem esperar os 720 min');
+  assert.notEqual(moved.techEmail, TA, 'não voltou para quem está de férias');
+  const ov = (await adm.req('GET', '/api/admin/redistribution')).body;
+  assert.ok(ov.status.techs.vacation >= 1);
+  assert.ok(Array.isArray(ov.status.checks) && ov.status.checks.length >= 3);
+  assert.ok(ov.status.engine && ['manual', 'auto'].includes(ov.status.engine.by), 'o motor registra o último ciclo');   // o ciclo automático pode ter rodado logo depois do manual
+  assert.ok(ov.status.recent.some(r => r.pppoe === t.pppoe));
+  await redist({ on: 0, how: 'L', wait: 30, cap: 15, max: 3, en: ['MANHA', 'TARDE', 'NOITE', 'MADRUGADA'] });
+
+  // ADM encerra as férias em andamento: o técnico volta a receber
+  assert.equal((await va.req('POST', '/api/vacations/cancel', { id: rq.body.id })).status, 403, 'técnico não encerra as que já começaram');
+  const end = await adm.req('POST', '/api/vacations/cancel', { id: rq.body.id });
+  assert.equal(end.status, 200);
+  assert.equal(end.body.status, 'ENCERRADA');
+  assert.equal((await adm.sync({ tasks: { upsert: [mk2] } })).status, 200);
+
+  // ADM registra férias futuras direto; o técnico pode cancelar antes de começar
+  const fut = await adm.req('POST', '/api/vacations/create', { userId: UB, from: addDays(today, 10), to: addDays(today, 12) });
+  assert.equal(fut.status, 200);
+  assert.equal((await vb.req('POST', '/api/vacations/cancel', { id: fut.body.id })).status, 200);
+  assert.equal((await va.req('POST', '/api/vacations/create', { userId: UA, from: today, to: today })).status, 403);
+});
+
 test('análises (gráficos): ADM vê a equipe toda, técnico só os seus; e-mail e dados de acesso só para o ADM', async () => {
   const y = await adm.req('GET', '/api/analytics?range=YEAR');
   assert.equal(y.status, 200);

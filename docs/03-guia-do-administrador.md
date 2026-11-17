@@ -70,6 +70,20 @@ A lista global de **todas** as verificações, com busca por PPPoE e filtros por
   perfil (Técnico ou Administrador) e turno** (a lista inclui *Geral (ADM)*) e **redefina a senha**. Há **busca** por nome,
   e-mail ou turno e atalhos *Todos / Técnicos / ADM* com a contagem de cada um. A lista é **paginada** (10, 20 ou 50 por página,
   com *Ir para*); mudar a busca ou o filtro volta à primeira página. O sistema **não permite ficar sem nenhum administrador ativo**.
+- **Férias.** Subseção própria (e botão **Férias** em cada técnico, em *Gerenciar usuários*). **Quem está de férias não recebe
+  verificações**: nem pela redistribuição, nem por designação sua, nem pela atribuição automática; você também não consegue reatribuir
+  ou criar verificação para ele, e ele não consegue assumir pendências. Dois caminhos:
+  - **Você registra** (*Registrar férias*): escolhe o técnico e o período e já fica **aprovada**.
+  - **O técnico solicita** no próprio perfil (*Minhas férias → Solicitar férias*). A solicitação aparece em **Aguardando sua decisão**
+    (com selo no menu): **Aprove** ou **Recuse** (com motivo opcional, que o técnico vê).
+  - Regras: até **90 dias** por período, início **hoje ou depois**, sem sobreposição com outra férias do mesmo técnico.
+  - **Ao começar** (ou ao aprovar, se já começou), o que ele tem em aberto e **não iniciou** volta para a **fila central** e a
+    redistribuição passa a outro técnico **sem esperar o tempo mínimo** (quem deixou está ausente). O atendimento em andamento não é mexido.
+    Ao aprovar você pode escolher **não devolver** as abertas. Cada devolução aparece na linha do tempo da verificação.
+  - Dá para **cancelar** as agendadas e **encerrar** as que já começaram (o técnico volta a receber na hora). Ao fim do período
+    ele volta a receber sozinho; não há nada a fazer.
+  - **A equipe vê** o status: o cartão e o perfil do técnico mostram *De férias até dd/mm*, e *Férias de dd/mm a dd/mm* até 30 dias antes.
+    Solicitações ainda não aprovadas só você e o próprio técnico veem.
 - **Excluir um usuário definitivamente.** O botão **Excluir** (vermelho, em cada linha; você não aparece na sua própria linha) abre
   um aviso que mostra **o que vai acontecer antes** de você confirmar:
   - **Não tem volta**: a conta é apagada e a pessoa perde o acesso na hora (só um backup restaura). Vale fazer um backup antes.
@@ -169,6 +183,32 @@ Mostra as verificações que técnicos **deixaram pendentes de contato**. A que 
 
 Quem recebe uma pendência (por qualquer caminho) começa com as **observações em branco** e vê o **aviso** de que ela estava pendente.
 
+### Acompanhamento (pendências que já estão com um técnico)
+
+Na própria tela *Pendências* há duas abas: **Fila central** (o que está acima) e **Acompanhamento**. Quando uma pendência sai da
+fila (redistribuição automática, designação sua, reatribuição ou técnico que assumiu), ela deixa de aparecer na fila central. Como
+o técnico pode **nem abrir o sistema**, e algumas pendências são urgentes, o *Acompanhamento* mostra o que já foi entregue e
+**se alguém realmente pegou**.
+
+| Cartão | O que conta |
+|---|---|
+| **Com o técnico** | Entregues e ainda não concluídas |
+| **Técnico não viu** | O técnico **não abriu o sistema** desde que recebeu e ainda não iniciou |
+| **Urgentes** | Prioridade urgente, em aberto |
+| **Paradas +4h** | Há mais de 4 h com o técnico, sem iniciar |
+| **Prazo vencido** | Já atrasadas |
+| **Concluídas** | Fechadas nos últimos 7/30/90 dias (escolha no filtro), para ver quanto demorou |
+
+Cada linha mostra o **técnico que recebeu** (online agora, visto há quanto tempo, último login, quantas tem na fila), **quem enviou**
+(redistribuição automática, designada ou reatribuída por você, ou técnico que assumiu sozinho), **quando**, a **situação**
+(*Não abriu o sistema* / *Viu, não iniciou* / *Em atendimento* / *Concluída*), o prazo e a nota de quem deixou. As linhas que pedem
+ação ficam em **vermelho** (urgente, atrasada ou parada que o técnico não viu) e vêm primeiro. Em cada linha: **Reatribuir** (passa a
+outro técnico, ex.: quem não está acessando) e **Histórico**. O menu *Pendências* ganha um **selo vermelho** com quantas entregas o técnico ainda não viu.
+
+> “Abriu o sistema” significa que o técnico **carregou a própria fila depois do envio**; não prova que leu aquela verificação.
+> A tela se atualiza sozinha (a cada ~45 s) e tem o botão de atualizar. Entregas feitas antes da versão 1.8.17 passam a ser
+> acompanhadas a partir da atualização (as que o técnico já iniciou, ou que ele já abriu depois de receber, não geram alerta).
+
 ---
 
 ## 10. Redistribuição
@@ -190,7 +230,17 @@ Botões opcionais:
 - **Simular:** mostra o que seria feito agora, **sem alterar nada**. O resultado abre num segundo modal.
 - **Distribuir agora, sem esperar:** adianta a rotina, ignorando o tempo de espera. Antes de executar, o sistema abre um aviso que mostra **quantas pendências** serão distribuídas, o que vai acontecer com elas (inclusive as que esgotaram o limite de trocas e ficam para você) e oferece **Simular primeiro**.
 
-Os cartões do topo mostram a fila central, quantas foram distribuídas hoje e se a rotina está ativa (e quando conferiu a fila pela última vez).
+A página mostra **ao vivo** (atualiza sozinha a cada 15 s) o que o motor está fazendo, para você não precisar adivinhar:
+
+- **Faixa de estado:** verde = motor rodando (com o resultado do último ciclo, mesmo quando ele **não moveu nada**); vermelho = parou de
+  rodar há mais de 3 min; cinza = desligado.
+- **Diagnóstico ("Está tudo certo?")**, com ✔ ok, ⚠ atenção, ✖ problema e ℹ informação: redistribuição ligada; motor e agendador ativos;
+  turnos habilitados sem técnico disponível; **quantos técnicos podem receber agora e por que os outros não** (limite de fila, férias,
+  turno não habilitado); como está a fila (prontas, aguardando a espera, esgotadas); e se há pendência pronta **sem ninguém para receber**.
+- **O que o sistema fez há pouco:** as últimas movimentações (redistribuída, designada, devolvida por férias, para quem) e o histórico
+  dos ciclos que tinham pendência para olhar, com o motivo de cada um (*aguardando a espera, sem técnico elegível, todos no limite…*).
+
+Os cartões do topo mostram a fila central, quantas foram distribuídas hoje e o **último ciclo do motor** (não só a última vez que moveu algo).
 A regra completa de justiça, o limite de trocas e as proteções estão em [Regras e fluxos](04-regras-e-fluxos.md#6-redistribuição-automática).
 
 ---
